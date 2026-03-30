@@ -5,16 +5,18 @@ from homeassistant.helpers import selector
 from .const import DOMAIN, CONF_ROOM_SENSOR, CONF_FLOOR_SENSOR, CONF_HEATER_SWITCH
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Advanced Floor Heating."""
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
+        """Handle the initial step where the user adds the integration."""
         if user_input is not None:
             return self.async_create_entry(title=user_input["name"], data=user_input)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required("name", default="Mit Rum"): str,
+                vol.Required("name", default="Living Room"): str,
                 vol.Required(CONF_ROOM_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
@@ -30,10 +32,13 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
+        """Get the options flow for this handler."""
         return AdvancedFloorHeatingOptionsFlowHandler()
 
 class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle the options flow to tune PID parameters."""
     async def async_step_init(self, user_input=None):
+        """Manage the options settings."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
