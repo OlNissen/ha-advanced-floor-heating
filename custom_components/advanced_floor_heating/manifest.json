@@ -1,0 +1,10 @@
+{
+  "domain": "advanced_floor_heating",
+  "name": "Advanced Floor Heating",
+  "codeowners": ["@OlNissen"],
+  "dependencies": [],
+  "config_flow": true,
+  "documentation": "https://github.com/OlNissen/ha-advanced-floor-heating",
+  "iot_class": "local_polling",
+  "version": "1.0.0"
+}
