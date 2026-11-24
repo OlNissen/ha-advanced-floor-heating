@@ -357,6 +357,9 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     // "Kun Gulv": rummet bruges ikke, så rum-justeringen skjules helt (knap + træk)
     this._roomAdjustable = attr.preset_mode !== 'Kun Gulv';
     roomMk.style.display = this._roomAdjustable ? '' : 'none';
+    // "Kun Rum": gulvet bruges ikke, så gulv-justeringen skjules også
+    this._floorAdjustable = attr.preset_mode !== 'Kun Rum';
+    floorMk.style.display = (hasFloorSensor && this._floorAdjustable) ? 'block' : 'none';
     if (dimMarkers) {
       const isOff = state.state === 'off';
       const preset = attr.preset_mode;
@@ -557,6 +560,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     const distance = Math.sqrt(x*x + y*y);
     if (distance > 70 && distance < 130) {
       if (y < 0 && this._roomAdjustable === false) return;  // rum skjult i "Kun Gulv"
+      if (y >= 0 && this._floorAdjustable === false) return;  // gulv skjult i "Kun Rum"
       svg.setPointerCapture(e.pointerId);
       if (y < 0) {
         this._isDraggingRoom = true;
