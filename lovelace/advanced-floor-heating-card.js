@@ -306,7 +306,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       mode = reg_status.replace(/\s*\(.*\)\s*$/, '');
     } else if (/^Kun Rum$/.test(reg_status) || /^Kun Gulv$/.test(reg_status)) {
       mode = `Regulerer kun efter ${reg_status.slice(4).toLowerCase()}`;
-    } else if (/^(Rum|Gulv)/.test(reg_status)) {
+    } else if (/^(Rum|Gulv)( |$)/.test(reg_status)) {
       mode = `Regulerer efter ${reg_status.split(' ')[0].toLowerCase()}`;
     } else if (/^Mål nået/.test(reg_status)) {
       mode = 'Mål nået';
