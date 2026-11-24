@@ -380,9 +380,13 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     if (dimMarkers) {
       const isOff = state.state === 'off';
       const preset = attr.preset_mode;
-      // I kombinerede tilstande afgør kun én zone ad gangen ("Rum (Størst behov)" / "Gulv (Nærmest mål)"):
-      // den anden dæmpes.
-      const deciding = /^Rum/.test(reg_status) ? 'room' : (/^Gulv/.test(reg_status) ? 'floor' : 'both');
+      // "Rum & Gulv (Begge Opfyldt)": begge zoner skal opfyldes -> begge knapper tændt.
+      // "Rum & Gulv (1 Opfyldt)": kun én behøver at være opfyldt -> den zone, der regulerer lige nu
+      // ("Rum (Nærmest mål)" / "Gulv (Nærmest mål)"), er tændt, og den anden dæmpes.
+      let deciding = 'both';
+      if (preset === 'Rum & Gulv (1 Opfyldt)') {
+        deciding = /^Rum/.test(reg_status) ? 'room' : (/^Gulv/.test(reg_status) ? 'floor' : 'both');
+      }
       const roomUsed = preset !== 'Kun Gulv' && !attr.output_frozen && deciding !== 'floor';
       const floorUsed = preset !== 'Kun Rum' && deciding !== 'room';
       styleMarker(roomMk, isOff ? 'off' : (roomUsed ? 'on' : 'dim'), '#f44336');

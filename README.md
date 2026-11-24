@@ -173,8 +173,8 @@ dim_markers: true    # false = knapperne er altid fulde (ingen dæmpning/sluknin
 
 | Knap | Når den er |
 |---|---|
-| Fuld | zonen er den, der afgør reguleringen lige nu (i kombinerede tilstande: den zone, status-linjen nævner, f.eks. `Rum (Størst behov)`) |
-| Dæmpet | den anden zone, når kun den ene afgør (i `Rum & Gulv` dæmpes gulvet, mens rummet afgør, og omvendt), eller rummet er sat på pause, mens et vindue/en dør er åben |
+| Fuld | zonen skal opfyldes: begge i `Rum & Gulv (Begge Opfyldt)`, kun den zone, der regulerer lige nu, i `Rum & Gulv (1 Opfyldt)` (f.eks. `Rum (Nærmest mål)`) |
+| Dæmpet | den anden zone i `Rum & Gulv (1 Opfyldt)`, når kun den ene afgør, eller rummet, mens et vindue/en dør er åben |
 | Næsten slukket og grå | regulatoren er slukket |
 
 Rum står altid øverst og gulv nederst. I tilstanden `Kun Gulv` er rum-justeringen skjult helt (knap og træk), fordi rummet ikke bruges, og i `Kun Rum` er gulv-justeringen skjult på samme måde. Begge valg findes også i kortets editor.
