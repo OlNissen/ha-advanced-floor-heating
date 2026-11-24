@@ -114,6 +114,17 @@ class AdvancedFloorHeatingCard extends HTMLElement {
               </select>
             </div>
 
+            <div id="autotune-row" style="display: none; width: 100%; margin-bottom: 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 12px; color: var(--secondary-text-color);">Autotune PID</span>
+                <span style="display: flex; gap: 6px;">
+                  <button id="at-toggle" style="padding: 4px 10px; border-radius: 6px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); cursor: pointer; font-size: 12px;">Start</button>
+                  <button id="at-apply" style="padding: 4px 10px; border-radius: 6px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); cursor: pointer; font-size: 12px;">Anvend</button>
+                </span>
+              </div>
+              <div id="at-status" style="font-size: 11px; color: var(--secondary-text-color); margin-top: 4px;"></div>
+            </div>
+
             <div style="background: var(--secondary-background-color); padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box;">
               <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 8px;">PID Data</div>
               <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center;">
@@ -146,6 +157,17 @@ class AdvancedFloorHeatingCard extends HTMLElement {
         const currentMode = hass.states[entityId].state;
         const newMode = currentMode === 'off' ? 'heat' : 'off';
         hass.callService('climate', 'set_hvac_mode', { entity_id: entityId, hvac_mode: newMode });
+      });
+
+      this.querySelector('#at-toggle').addEventListener('click', () => {
+        const sw = this._siblingId(/^switch\..*_autotune$/);
+        if (!sw) return;
+        const on = this._hass.states[sw].state === 'on';
+        this._hass.callService('switch', on ? 'turn_off' : 'turn_on', { entity_id: sw });
+      });
+      this.querySelector('#at-apply').addEventListener('click', () => {
+        const btn = this._siblingId(/^button\..*_anvend_autotune$/);
+        if (btn) this._hass.callService('button', 'press', { entity_id: btn });
       });
 
       this.querySelector('#preset-select').addEventListener('change', (e) => {
@@ -195,6 +217,16 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     }
     if (attr.preset_mode && selectEl.value !== attr.preset_mode) {
       selectEl.value = attr.preset_mode;
+    }
+
+    // --- Autotune (kun i Pro-skuffen, og kun for rum med autotune-entiteter) ---
+    const atSwitch = this._siblingId(/^switch\..*_autotune$/);
+    const atRow = this.querySelector('#autotune-row');
+    atRow.style.display = atSwitch ? 'block' : 'none';
+    if (atSwitch) {
+      const running = hass.states[atSwitch].state === 'on';
+      this.querySelector('#at-toggle').innerText = running ? 'Stop' : 'Start';
+      this.querySelector('#at-status').innerText = attr.autotune_status || '';
     }
 
     // --- Aflæs og afrund PID Data ---
@@ -314,6 +346,15 @@ class AdvancedFloorHeatingCard extends HTMLElement {
 
     // Hold graferne (hvis de er åbne) opdateret
     this._graphCards.forEach(c => { c.hass = hass; });
+  }
+
+  // Find en søster-entitet (samme enhed/rum) ud fra et navnemønster
+  _siblingId(re) {
+    const hass = this._hass;
+    const reg = hass && hass.entities;
+    const dev = reg && reg[this.config.entity] ? reg[this.config.entity].device_id : null;
+    if (!dev) return null;
+    return Object.keys(reg).find(id => reg[id].device_id === dev && re.test(id) && hass.states[id]) || null;
   }
 
   // ------------------------------------------------------------------ GRAF
