@@ -14,7 +14,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     this._dragFloorTemp = null;
     this._timeoutRoom = null;
     this._timeoutFloor = null;
-    this._showPro = false;
+    this._settingsOverlay = null;
     this._overlay = null;
     this._graphCards = [];
     this._graphHours = 24;
@@ -42,6 +42,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
 
   disconnectedCallback() {
     this._closeGraph();
+    this._closeSettings();
   }
 
   set hass(hass) {
@@ -147,10 +148,9 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       document.addEventListener('pointermove', this._onPointerMove.bind(this));
       document.addEventListener('pointerup', this._onPointerUp.bind(this));
 
+      // Tandhjulet åbner indstillingerne i en popup (samme stil som grafen)
       this.querySelector('#btn-cog').addEventListener('click', () => {
-        this._showPro = !this._showPro;
-        this.querySelector('#pro-panel').style.display = this._showPro ? 'block' : 'none';
-        this.querySelector('#btn-cog').style.color = this._showPro ? 'var(--primary-color)' : 'var(--secondary-text-color)';
+        if (this._settingsOverlay) this._closeSettings(); else this._openSettings();
       });
 
       this.querySelector('#btn-graph').addEventListener('click', () => this._openGraph());
@@ -483,11 +483,65 @@ class AdvancedFloorHeatingCard extends HTMLElement {
   }
 
   _onKeyDown(e) {
-    if (e.key === 'Escape') this._closeGraph();
+    if (e.key === 'Escape') {
+      this._closeGraph();
+      this._closeSettings();
+    }
+  }
+
+  // ------------------------------------------------------------ INDSTILLINGER (popup)
+
+  _openSettings() {
+    if (this._settingsOverlay) return;
+    const panel = this.querySelector('#pro-panel');
+    if (!panel) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;';
+    overlay.innerHTML = `
+      <div style="background:var(--card-background-color,#1c1c1c);color:var(--primary-text-color,#fff);border-radius:12px;width:100%;max-width:420px;max-height:92vh;overflow:auto;padding:12px 16px 16px;box-sizing:border-box;box-shadow:0 8px 30px rgba(0,0,0,0.5);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;">
+          <div id="s-title" style="font-size:1.1rem;font-weight:500;"></div>
+          <ha-icon icon="mdi:close" id="s-close" style="cursor:pointer;"></ha-icon>
+        </div>
+        <div id="s-body"></div>
+      </div>`;
+    // Inde i kortet (HA's komponent-træ), så alt stadig opdateres af hass-setteren
+    this.appendChild(overlay);
+    this._settingsOverlay = overlay;
+
+    const attr = this._hass ? this._hass.states[this.config.entity].attributes : {};
+    overlay.querySelector('#s-title').innerText = `${this.config.name || attr.friendly_name || 'Gulvvarme'} – indstillinger`;
+    overlay.querySelector('#s-close').addEventListener('click', () => this._closeSettings());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) this._closeSettings(); });
+    document.addEventListener('keydown', this._onKeyDown);
+
+    // Flyt det eksisterende panel ind i popup'en
+    panel.style.display = 'block';
+    panel.style.borderTop = 'none';
+    panel.style.marginTop = '0';
+    panel.style.paddingTop = '0';
+    overlay.querySelector('#s-body').appendChild(panel);
+    const cog = this.querySelector('#btn-cog');
+    if (cog) cog.style.color = 'var(--primary-color)';
+  }
+
+  _closeSettings() {
+    if (!this._settingsOverlay) return;
+    const panel = this.querySelector('#pro-panel');
+    const card = this.querySelector('ha-card');
+    if (panel && card) {
+      panel.style.display = 'none';
+      card.appendChild(panel);
+    }
+    this._settingsOverlay.remove();
+    this._settingsOverlay = null;
+    if (!this._overlay) document.removeEventListener('keydown', this._onKeyDown);
+    const cog = this.querySelector('#btn-cog');
+    if (cog) cog.style.color = 'var(--secondary-text-color)';
   }
 
   _closeGraph() {
-    document.removeEventListener('keydown', this._onKeyDown);
+    if (!this._settingsOverlay) document.removeEventListener('keydown', this._onKeyDown);
     if (this._overlay) {
       this._overlay.remove();
       this._overlay = null;

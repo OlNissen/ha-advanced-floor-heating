@@ -155,7 +155,7 @@ Filen [`lovelace/advanced-floor-heating-card.js`](lovelace/advanced-floor-heatin
 - **Dial** med rum (øverst) og gulv (nederst). Træk i dial'en for at ændre måltemperatur. Kortet er med vilje enkelt og stille.
 - **Én lille linje** under dial'en fortæller, hvad rummet regulerer efter (`Regulerer efter rum`, `Regulerer kun efter gulv`, `Mål nået`, `Slukket`). Ved åbent vindue står der `Vindue åbent – udgang holdes`, og under autotune `Autotune kører`.
 - **Graf-knap** (kurve-ikonet ved tandhjulet): åbner historik for rum, gulv, rum-/gulv-setpunkt, effekt og ventil. Vælg 6 timer, 24 timer, 3 dage eller 7 dage.
-- **Tandhjul**: til/fra, driftstilstand, ventil og PID-data (her står også effekt og den fulde status).
+- **Tandhjul**: åbner indstillingerne i en popup (samme stil som grafen) med til/fra, driftstilstand, ventil, autotune og PID-data (her står også effekt og den fulde status). Kortet selv forbliver småt og stille.
 
 Installation: kopiér filen til `config/www/`, og tilføj den som ressource (**Indstillinger → Dashboards → ⋮ → Ressourcer → Tilføj**): URL `/local/advanced-floor-heating-card.js`, type *JavaScript-modul*. Ændrer du filen, så hæv `?v=…` på URL'en for at tvinge browseren til at hente den igen.
 
