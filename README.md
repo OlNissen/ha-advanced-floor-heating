@@ -165,7 +165,7 @@ entity: climate.stue
 switch_entity: switch.stue_telestat   # valgfri: viser om ventilen er åben
 name: Stue
 show_status: true    # false = skjul den lille tilstandslinje i bunden
-dim_markers: true    # false = knapperne er altid tændte (og rum/gulv bytter plads i "Kun Gulv")
+dim_markers: true    # false = knapperne er altid fulde (ingen dæmpning/slukning)
 ```
 
 **Setpunkt-knapperne følger tilstanden** (med `dim_markers: true`, som er standard):

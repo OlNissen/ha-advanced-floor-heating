@@ -258,15 +258,9 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     let text_top = "RUM";
     let text_bottom = "GULV";
 
-    // Med dæmpede knapper (standard) står rum altid øverst og gulv nederst; den zone, der ikke
-    // bruges i den valgte tilstand, dæmpes i stedet for at bytte plads.
+    // Rum står altid øverst og gulv nederst. Valget "dim_markers" styrer kun, om den zone, der
+    // ikke bruges i den valgte tilstand, dæmpes.
     const dimMarkers = this.config.dim_markers !== false;
-    if (!dimMarkers && (reg_status === "Kun Gulv" || reg_status === "Floor Only" || attr.preset_mode === "Kun Gulv")) {
-      temp_top = showTarget ? floor_bor : floor_er;
-      temp_bottom = showTarget ? room_bor : room_er;
-      text_top = "GULV";
-      text_bottom = "RUM";
-    }
 
     if (!this._isDraggingRoom && !this._timeoutRoom) {
       this.querySelector('#temp-top-val').innerText = `${temp_top.toFixed(1)}°`;
