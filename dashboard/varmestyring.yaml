@@ -1,0 +1,185 @@
+# Advanced Floor Heating - dashboard til alle rum
+# Genereret af tools/generer_dashboard.py - ret rum ved at generere filen igen,
+# eller kopiér/slet blokke herunder (ét rum = ét "vertical-stack").
+# Kræver Home Assistant 2024.8 eller nyere. Ingen ekstra kort fra HACS nødvendige.
+title: Varmestyring
+views:
+  - title: Varme
+    path: varme
+    icon: mdi:radiator
+    cards:
+      # ---------- Overblik ----------
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Alle rum
+            show_header_toggle: false
+            entities:
+              - entity: climate.stue
+                name: Stue
+              - entity: climate.kontor
+                name: Kontor
+              - entity: climate.bad
+                name: Bad
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Alle til
+                icon: mdi:radiator
+                tap_action:
+                  action: perform-action
+                  perform_action: climate.turn_on
+                  target:
+                    entity_id: [climate.stue, climate.kontor, climate.bad]
+              - type: button
+                name: Alle fra
+                icon: mdi:radiator-off
+                tap_action:
+                  action: perform-action
+                  perform_action: climate.turn_off
+                  target:
+                    entity_id: [climate.stue, climate.kontor, climate.bad]
+      # ---------- Stue ----------
+      - type: vertical-stack
+        cards:
+          - type: thermostat
+            entity: climate.stue
+            name: Stue
+            features:
+              - type: climate-hvac-modes
+                hvac_modes: [heat, "off"]
+              - type: climate-preset-modes
+                style: dropdown
+                preset_modes:
+                  - Room Only
+                  - Floor Only
+                  - Room & Floor (1 Met)
+                  - Room & Floor (Both Met)
+          - type: entities
+            show_header_toggle: false
+            entities:
+              - type: attribute
+                entity: climate.stue
+                attribute: room_temperature
+                name: Rumtemperatur
+                suffix: °C
+              - type: attribute
+                entity: climate.stue
+                attribute: room_target_temperature
+                name: Ønsket rumtemperatur
+                suffix: °C
+              - type: attribute
+                entity: climate.stue
+                attribute: floor_temperature
+                name: Gulvtemperatur
+                suffix: °C
+              - entity: number.stue_floor_setpoint
+                name: Ønsket gulvtemperatur
+              - entity: sensor.stue_pid_signal
+                name: Varmeeffekt
+              - entity: sensor.stue_regulation_status
+                name: Status
+              - type: attribute
+                entity: climate.stue
+                attribute: window_open
+                name: Vindue åbent
+              - type: attribute
+                entity: climate.stue
+                attribute: output_frozen
+                name: Udgang frosset (vindue)
+      # ---------- Kontor ----------
+      - type: vertical-stack
+        cards:
+          - type: thermostat
+            entity: climate.kontor
+            name: Kontor
+            features:
+              - type: climate-hvac-modes
+                hvac_modes: [heat, "off"]
+              - type: climate-preset-modes
+                style: dropdown
+                preset_modes:
+                  - Room Only
+                  - Floor Only
+                  - Room & Floor (1 Met)
+                  - Room & Floor (Both Met)
+          - type: entities
+            show_header_toggle: false
+            entities:
+              - type: attribute
+                entity: climate.kontor
+                attribute: room_temperature
+                name: Rumtemperatur
+                suffix: °C
+              - type: attribute
+                entity: climate.kontor
+                attribute: room_target_temperature
+                name: Ønsket rumtemperatur
+                suffix: °C
+              - type: attribute
+                entity: climate.kontor
+                attribute: floor_temperature
+                name: Gulvtemperatur
+                suffix: °C
+              - entity: number.kontor_floor_setpoint
+                name: Ønsket gulvtemperatur
+              - entity: sensor.kontor_pid_signal
+                name: Varmeeffekt
+              - entity: sensor.kontor_regulation_status
+                name: Status
+              - type: attribute
+                entity: climate.kontor
+                attribute: window_open
+                name: Vindue åbent
+              - type: attribute
+                entity: climate.kontor
+                attribute: output_frozen
+                name: Udgang frosset (vindue)
+      # ---------- Bad ----------
+      - type: vertical-stack
+        cards:
+          - type: thermostat
+            entity: climate.bad
+            name: Bad
+            features:
+              - type: climate-hvac-modes
+                hvac_modes: [heat, "off"]
+              - type: climate-preset-modes
+                style: dropdown
+                preset_modes:
+                  - Room Only
+                  - Floor Only
+                  - Room & Floor (1 Met)
+                  - Room & Floor (Both Met)
+          - type: entities
+            show_header_toggle: false
+            entities:
+              - type: attribute
+                entity: climate.bad
+                attribute: room_temperature
+                name: Rumtemperatur
+                suffix: °C
+              - type: attribute
+                entity: climate.bad
+                attribute: room_target_temperature
+                name: Ønsket rumtemperatur
+                suffix: °C
+              - type: attribute
+                entity: climate.bad
+                attribute: floor_temperature
+                name: Gulvtemperatur
+                suffix: °C
+              - entity: number.bad_floor_setpoint
+                name: Ønsket gulvtemperatur
+              - entity: sensor.bad_pid_signal
+                name: Varmeeffekt
+              - entity: sensor.bad_regulation_status
+                name: Status
+              - type: attribute
+                entity: climate.bad
+                attribute: window_open
+                name: Vindue åbent
+              - type: attribute
+                entity: climate.bad
+                attribute: output_frozen
+                name: Udgang frosset (vindue)

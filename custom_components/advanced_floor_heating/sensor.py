@@ -3,6 +3,7 @@ import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import PERCENTAGE
 from .const import DOMAIN
+from .helpers import UpdateListenerMixin, device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -13,12 +14,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
         RegulationStatusSensor(entry)
     ])
 
-class PIDSignalSensor(SensorEntity):
+class PIDSignalSensor(UpdateListenerMixin, SensorEntity):
     """Sensor to track the PID output signal."""
-    
+
     def __init__(self, entry):
         self._attr_name = f"{entry.data['name']} PID Signal"
         self._attr_unique_id = f"{entry.entry_id}_pid_signal"
+        self._attr_device_info = device_info(entry)
         self._attr_native_unit_of_measurement = PERCENTAGE
         self._entry_id = entry.entry_id
 
@@ -33,12 +35,13 @@ class PIDSignalSensor(SensorEntity):
             _LOGGER.error("Could not read PID signal from climate entity")
         return 0
 
-class RegulationStatusSensor(SensorEntity):
+class RegulationStatusSensor(UpdateListenerMixin, SensorEntity):
     """Sensor to track the current regulation status text."""
-    
+
     def __init__(self, entry):
         self._attr_name = f"{entry.data['name']} Regulation Status"
         self._attr_unique_id = f"{entry.entry_id}_regulation_status"
+        self._attr_device_info = device_info(entry)
         self._attr_icon = "mdi:brain"
         self._entry_id = entry.entry_id
 

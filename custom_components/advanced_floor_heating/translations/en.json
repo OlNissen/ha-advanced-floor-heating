@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a room to the floor heating",
+        "description": "Every room gets its own controller. Add the integration again for each room.",
+        "data": {
+          "name": "Room name (e.g. Living room)",
+          "room_sensor": "Room temperature sensor",
+          "floor_sensor": "Floor temperature sensor",
+          "heater_switch": "Heater switch (thermal actuator/relay)",
+          "window_sensor": "Window sensor (optional)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Room settings",
+        "description": "When the window is open the output is frozen, so nothing is regulated on the room temperature. Only \"Floor Only\" keeps regulating.",
+        "data": {
+          "window_sensor": "Window sensor (optional, empty = no window rule)",
+          "max_floor_temp": "Max floor temperature (°C) - heating stops above this",
+          "kp": "Kp (proportional)",
+          "ki": "Ki (integral)",
+          "kd": "Kd (differential)",
+          "pid_interval": "PID interval (seconds)",
+          "cycle_time": "PWM cycle (seconds)"
+        }
+      }
+    }
+  }
+}

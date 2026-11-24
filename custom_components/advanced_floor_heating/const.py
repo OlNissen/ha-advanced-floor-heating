@@ -8,6 +8,10 @@ CONF_FLOOR_SENSOR = "floor_sensor"
 CONF_HEATER_SWITCH = "heater_switch"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_MAX_FLOOR_TEMP = "max_floor_temp"
+CONF_WINDOW_SENSOR = "window_sensor"
+
+# Defaults
+DEFAULT_MAX_FLOOR_TEMP = 32.0
 
 # Operating Modes (Presets)
 # Note: These must match the strings used in climate.py exactly
