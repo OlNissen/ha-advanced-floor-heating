@@ -354,6 +354,9 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       el.style.opacity = level === 'on' ? '1' : (level === 'dim' ? '0.4' : '0.25');
       el.setAttribute('stroke', level === 'off' ? 'var(--disabled-text-color, #888)' : color);
     };
+    // "Kun Gulv": rummet bruges ikke, så rum-justeringen skjules helt (knap + træk)
+    this._roomAdjustable = attr.preset_mode !== 'Kun Gulv';
+    roomMk.style.display = this._roomAdjustable ? '' : 'none';
     if (dimMarkers) {
       const isOff = state.state === 'off';
       const preset = attr.preset_mode;
@@ -553,6 +556,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
 
     const distance = Math.sqrt(x*x + y*y);
     if (distance > 70 && distance < 130) {
+      if (y < 0 && this._roomAdjustable === false) return;  // rum skjult i "Kun Gulv"
       svg.setPointerCapture(e.pointerId);
       if (y < 0) {
         this._isDraggingRoom = true;
