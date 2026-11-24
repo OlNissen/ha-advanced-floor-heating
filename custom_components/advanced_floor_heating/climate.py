@@ -222,9 +222,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         return {
             "regulation_status": self._regulation_status,
-            "room_temperature": curr_room,
+            # 0.0 (ikke None) naar foleren mangler: Lovelace-kortet kalder .toFixed() paa vaerdien
+            "room_temperature": curr_room if curr_room is not None else 0.0,
             "room_target_temperature": self._target_temp_room,
-            "floor_temperature": curr_floor,
+            "floor_temperature": curr_floor if curr_floor is not None else 0.0,
             "floor_target_temperature": self._target_temp_floor,
             "max_floor_temperature": self._max_floor_temp,
             "window_sensor": self._window_sensor,
