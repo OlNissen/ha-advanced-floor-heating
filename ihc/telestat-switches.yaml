@@ -1,0 +1,39 @@
+# Telestat-udgange som switches i Home Assistant (IHC)
+#
+# Læg disse linjer ind under `switch:` i din `ihc_manual_setup.yaml`
+# (samme sted som den eksisterende "Kontor Telestat").
+#
+# `id` er IHC-ressource-id'et på telestat-udgangen. Det er det samme id, som den
+# automatiske IHC-opsætning i dag bruger til `binary_sensor.telestat_<rum>`
+# (se attributten `ihc_id`, eller unique_id `CN...-<id>` under Indstillinger -> Entiteter).
+#
+# OBS: Når id'et bliver en switch, bliver den gamle `binary_sensor.telestat_<rum>` med
+# samme id `unavailable` (præcis som `binary_sensor.telestat_kontor` er det i dag).
+# Brug i stedet `switch.<rum>_telestat` til at aflæse/styre.
+#
+# OBS 2: Slå kun reguleringen til i Advanced Floor Heating for et rum, når IHC-projektets
+# egen regulering af netop dette rums telestat er koblet fra - ellers regulerer to
+# systemer samme udgang.
+  switch:
+  - id: 12765531
+    name: Kontor Telestat          # findes allerede
+  - id: 17440859
+    name: Stue Telestat
+  - id: 21274715
+    name: Værelse 1 Telestat
+  - id: 21272667
+    name: Værelse 2 Telestat
+  - id: 21274203
+    name: Værelse 3 Telestat
+  - id: 30693211
+    name: Værelse 4 Telestat
+  - id: 21273179
+    name: Multigrum Telestat
+  - id: 30693723
+    name: Lille Bad Telestat
+  - id: 21275227
+    name: Store Bad Telestat
+  - id: 21273691
+    name: Soveværelse Telestat
+  - id: 21275739
+    name: Køkken Telestat
