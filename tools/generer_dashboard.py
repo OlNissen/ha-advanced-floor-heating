@@ -12,7 +12,10 @@ Du finder dem i Indstillinger -> Enheder & tjenester -> Entiteter (søg på "Flo
 
 For hvert rum bruges disse entities (de oprettes automatisk af integrationen):
     climate.<id>                 termostat
-    number.<id>_gulv_setpunkt      ønsket gulvtemperatur
+    number.<id>_rum_setpunkt     ønsket rumtemperatur (rum-setpunkt)
+    number.<id>_gulv_setpunkt    ønsket gulvtemperatur
+    switch.<id>_autotune         start/stop autotune af PID
+    button.<id>_anvend_autotune  anvend autotune-resultatet
     sensor.<id>_pid_signal       varmeeffekt i %
     sensor.<id>_reguleringsstatus
 """
@@ -66,11 +69,8 @@ def room_card(slug, name):
                 attribute: room_temperature
                 name: Rumtemperatur
                 suffix: °C
-              - type: attribute
-                entity: {c}
-                attribute: room_target_temperature
-                name: Ønsket rumtemperatur
-                suffix: °C
+              - entity: number.{slug}_rum_setpunkt
+                name: Ønsket rumtemperatur (rum-setpunkt)
               - type: attribute
                 entity: {c}
                 attribute: floor_temperature
@@ -90,6 +90,14 @@ def room_card(slug, name):
                 entity: {c}
                 attribute: output_frozen
                 name: Udgang frosset (vindue)
+              - entity: switch.{slug}_autotune
+                name: Autotune PID (tænd = start)
+              - entity: button.{slug}_anvend_autotune
+                name: Anvend autotune-resultat
+              - type: attribute
+                entity: {c}
+                attribute: autotune_status
+                name: Autotune-status
 """
 
 

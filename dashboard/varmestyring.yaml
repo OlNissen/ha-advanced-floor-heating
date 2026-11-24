@@ -63,11 +63,8 @@ views:
                 attribute: room_temperature
                 name: Rumtemperatur
                 suffix: °C
-              - type: attribute
-                entity: climate.stue
-                attribute: room_target_temperature
-                name: Ønsket rumtemperatur
-                suffix: °C
+              - entity: number.stue_rum_setpunkt
+                name: Ønsket rumtemperatur (rum-setpunkt)
               - type: attribute
                 entity: climate.stue
                 attribute: floor_temperature
@@ -87,6 +84,14 @@ views:
                 entity: climate.stue
                 attribute: output_frozen
                 name: Udgang frosset (vindue)
+              - entity: switch.stue_autotune
+                name: Autotune PID (tænd = start)
+              - entity: button.stue_anvend_autotune
+                name: Anvend autotune-resultat
+              - type: attribute
+                entity: climate.stue
+                attribute: autotune_status
+                name: Autotune-status
       # ---------- Kontor ----------
       - type: vertical-stack
         cards:
@@ -111,11 +116,8 @@ views:
                 attribute: room_temperature
                 name: Rumtemperatur
                 suffix: °C
-              - type: attribute
-                entity: climate.kontor
-                attribute: room_target_temperature
-                name: Ønsket rumtemperatur
-                suffix: °C
+              - entity: number.kontor_rum_setpunkt
+                name: Ønsket rumtemperatur (rum-setpunkt)
               - type: attribute
                 entity: climate.kontor
                 attribute: floor_temperature
@@ -135,6 +137,14 @@ views:
                 entity: climate.kontor
                 attribute: output_frozen
                 name: Udgang frosset (vindue)
+              - entity: switch.kontor_autotune
+                name: Autotune PID (tænd = start)
+              - entity: button.kontor_anvend_autotune
+                name: Anvend autotune-resultat
+              - type: attribute
+                entity: climate.kontor
+                attribute: autotune_status
+                name: Autotune-status
       # ---------- Bad ----------
       - type: vertical-stack
         cards:
@@ -159,11 +169,8 @@ views:
                 attribute: room_temperature
                 name: Rumtemperatur
                 suffix: °C
-              - type: attribute
-                entity: climate.bad
-                attribute: room_target_temperature
-                name: Ønsket rumtemperatur
-                suffix: °C
+              - entity: number.bad_rum_setpunkt
+                name: Ønsket rumtemperatur (rum-setpunkt)
               - type: attribute
                 entity: climate.bad
                 attribute: floor_temperature
@@ -183,3 +190,11 @@ views:
                 entity: climate.bad
                 attribute: output_frozen
                 name: Udgang frosset (vindue)
+              - entity: switch.bad_autotune
+                name: Autotune PID (tænd = start)
+              - entity: button.bad_anvend_autotune
+                name: Anvend autotune-resultat
+              - type: attribute
+                entity: climate.bad
+                attribute: autotune_status
+                name: Autotune-status

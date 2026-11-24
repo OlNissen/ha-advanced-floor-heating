@@ -98,9 +98,12 @@ Gå til **Indstillinger → Enheder & tjenester → Entiteter** og søg efter ru
 | Entity | Hvad |
 |---|---|
 | `climate.stue` | Selve regulatoren |
+| `number.stue_rum_setpunkt` | Ønsket rumtemperatur (rum-setpunkt) – kan både ses og ændres |
 | `number.stue_gulv_setpunkt` | Ønsket gulvtemperatur |
 | `sensor.stue_pid_signal` | Varmeeffekt (%) |
 | `sensor.stue_reguleringsstatus` | Status-tekst |
+| `switch.stue_autotune` | Start/stop autotune af PID |
+| `button.stue_anvend_autotune` | Anvend autotune-resultatet |
 
 Står dine entity-id'er anderledes (f.eks. `climate.stue_2`), så brug dem i næste trin.
 
@@ -121,8 +124,8 @@ Hvert argument er `entity-id-navn=Pænt navn` (entity-id-navnet er det, der stå
 *(Bruger du YAML-tilstand for dashboards, kan filen i stedet lægges i `config/` og refereres fra `configuration.yaml` under `lovelace: dashboards:`.)*
 
 ### Sådan bruges det
-- **Ønsket rumtemperatur:** stilles på termostat-kortet. I tilstanden `Kun Gulv` ændrer termostaten i stedet gulvets måltemperatur.
-- **Ønsket gulvtemperatur:** slideren i rum-kortet.
+- **Ønsket rumtemperatur (rum-setpunkt):** slideren `Rum Setpunkt` i rum-kortet viser og ændrer den. Termostat-kortet ændrer den også, undtagen i `Kun Gulv`, hvor termostaten i stedet ændrer gulvets måltemperatur.
+- **Ønsket gulvtemperatur:** slideren `Gulv Setpunkt` i rum-kortet.
 - **Til/fra:** knapperne `heat` / `off` på termostat-kortet. `off` sætter udgangen til 0 % og slukker for kontakten.
 - **Driftstilstand:** drop-down'en på termostat-kortet (de fire driftstilstande).
 - Vises preset-valget ikke på termostat-kortet i din HA-version, kan du ændre det via kortets "mere info"-dialog (klik på rummets navn).
@@ -135,6 +138,7 @@ Til automatiseringer:
 
 - `advanced_floor_heating.set_room_temperature` – sæt rummets måltemperatur
 - `advanced_floor_heating.set_floor_temperature` – sæt gulvets måltemperatur
+- `advanced_floor_heating.start_autotune` / `stop_autotune` / `apply_autotune` – se [Autotune af PID](#-autotune-af-pid)
 
 ```yaml
 action: advanced_floor_heating.set_room_temperature
@@ -143,6 +147,38 @@ target:
 data:
   temperature: 21.5
 ```
+
+## 🎛 Autotune af PID
+
+Autotune finder selv Kp og Ki til et rum. Den bruger **relæ-metoden** (Åström-Hägglund, samme princip som `smart_thermostat`):
+
+1. I stedet for PID'en lader den udgangen skifte mellem et højt og et lavt niveau omkring det udgangsniveau, regulatoren selv har fundet (I-leddet). Går temperaturen over setpunktet (+ støjbånd), går udgangen ned. Går den under, går udgangen op.
+2. Temperaturen begynder at svinge. Af svingningens **amplitude** og **periode** beregnes processens ultimative forstærkning (`Ku = 4·d / (π·amplitude)`).
+3. Når tre svingninger er ens (±20 %), regnes **Kp** og **Ki** ud med en tuning-regel (`ziegler-nichols` som standard, `tyreus-luyben` er mere forsigtig). **Kd bliver 0** (ren PI), som til gulvvarme er det sikreste.
+
+**Sådan bruges det**
+1. Sæt rummet til det setpunkt, du vil tune på, og lad rummet være ret roligt (vinduer lukkede, ingen sol/ovn der forstyrrer).
+2. Tænd kontakten `switch.<rum>_autotune` i rum-kortet. Status ses i attributten `autotune_status` og i regulatorens status.
+3. **Gulvvarme er træg – en kørsel tager typisk 10-25 timer**, og temperaturen svinger ca. ±0,5-1 °C om setpunktet undervejs. I simulering af en typisk gulvvarme tog det 12-23 timer.
+4. Når den er færdig, står resultatet i attributten `autotune_result` og i status-teksten. Tryk på knappen `button.<rum>_anvend_autotune`, så gemmes Kp/Ki/Kd i rummets indstillinger (rummet genindlæses). Intet ændres, før du trykker.
+
+**Hvad der tunes på:** i tilstande der bruger rummet (alle undtagen `Kun Gulv`) tunes på **rumtemperaturen**, ellers på **gulvtemperaturen**. Vil du bestemme det selv, så kald servicen `advanced_floor_heating.start_autotune` med `target: room` eller `floor`.
+
+**Sikkerhed:** Autotunen afbrydes (og udgangen sættes til 0 %), hvis vinduet åbnes (rum-tuning), gulvet kommer inden for 0,5 °C af maks. gulvtemperatur, en føler mangler, regulatoren slukkes, eller den ikke finder en stabil svingning inden for tidsgrænsen (24 t). Maks. gulvtemperatur gælder hele tiden – sæt den passende lavt, før du starter. Tidsgrænse, udgangstrin, støjbånd og regel kan ændres via servicen:
+
+```yaml
+action: advanced_floor_heating.start_autotune
+target:
+  entity_id: climate.stue
+data:
+  target: room          # room eller floor
+  output_step: 30       # % op/ned om bias-niveauet (mindre = mindre temperaturudsving)
+  noiseband: 0.2        # °C hysterese; skal være større end følerens støj
+  rule: ziegler-nichols # eller tyreus-luyben
+  max_hours: 24
+```
+
+Tun gerne ét rum ad gangen. Genstartes HA midt i en test, afbrydes den, og den starter ikke af sig selv igen.
 
 ## 🛡 Sikkerhed
 
@@ -165,6 +201,9 @@ Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `p
 - Rettet: valgt driftstilstand (preset) gendannes efter genstart
 - Rettet: `servies.yaml` → `services.yaml` (servicebeskrivelserne blev ikke indlæst)
 - Sensorer og slider opdateres med det samme og samles under én enhed pr. rum
+- Ny: `Rum Setpunkt` (number) – rummets måltemperatur kan ses og ændres som en slider
+- Ny: autotune af PID (relæ-metode) med kontakt, knap og tre services
+- `integration_type: hub`, så rummene vises under Integrationer (ikke Hjælpere)
 
 ## 🤝 Bidrag & support
 Fejl eller ønsker? Opret et Issue eller en Pull Request.

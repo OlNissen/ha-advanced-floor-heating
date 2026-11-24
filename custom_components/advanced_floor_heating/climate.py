@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import time
 import voluptuous as vol
 from homeassistant.components.climate import (
     ClimateEntity, HVACMode, ClimateEntityFeature
@@ -15,6 +16,7 @@ from .const import (
     PRESET_ROOM_ONLY, PRESET_FLOOR_ONLY, PRESET_BOTH_1_MET, PRESET_BOTH_BOTH_MET,
 )
 from .helpers import device_info, update_signal
+from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,10 +49,26 @@ async def async_setup_entry(hass, entry, async_add_entities):
         "async_set_floor_temperature",
     )
 
+    # --- AUTOTUNE AF PID ---
+    platform.async_register_entity_service(
+        "start_autotune",
+        {
+            vol.Optional("target"): vol.In(["room", "floor"]),
+            vol.Optional("output_step", default=30): vol.All(vol.Coerce(float), vol.Range(min=5, max=50)),
+            vol.Optional("noiseband", default=0.2): vol.All(vol.Coerce(float), vol.Range(min=0.05, max=2)),
+            vol.Optional("rule", default=DEFAULT_RULE): vol.In(list(RULES)),
+            vol.Optional("max_hours", default=24): vol.All(vol.Coerce(float), vol.Range(min=1, max=72)),
+        },
+        "async_start_autotune",
+    )
+    platform.async_register_entity_service("stop_autotune", {}, "async_stop_autotune")
+    platform.async_register_entity_service("apply_autotune", {}, "async_apply_autotune")
+
 
 class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
     def __init__(self, hass, entry):
         self.hass = hass
+        self._entry = entry
         self._entry_id = entry.entry_id
         self._attr_name = entry.data["name"]
         self._attr_unique_id = f"{entry.entry_id}_climate"
@@ -92,6 +110,12 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._current_error = 0.0
 
         self._tasks = []
+
+        # Autotune
+        self._tuner = None
+        self._tuner_target = None
+        self._tuner_result = None
+        self._autotune_msg = None
 
         self._attr_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_supported_features = (
@@ -240,7 +264,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "pid_d": round(self._d_out, 2),
             "pid_e": round(self._current_error, 2),
             "pid_interval": self._pid_interval,
-            "pwm_cycle_time": self._cycle_time
+            "pwm_cycle_time": self._cycle_time,
+            "autotune_active": self.autotune_active,
+            "autotune_status": self._autotune_msg,
+            "autotune_result": self._tuner_result,
         }
 
     # ------------------------------------------------------------------ control
@@ -254,6 +281,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
     async def _async_calculate_heating_demand(self):
         """The mathematical heart of the integration."""
         if self._attr_hvac_mode == HVACMode.OFF:
+            if self._tuner is not None:
+                self._autotune_abort("regulatoren blev slukket")
             self._pid_signal = 0.0
             self._frozen = False
             self._regulation_status = "Slukket (HVAC OFF)"
@@ -263,8 +292,15 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         curr_floor = self._read_temp(self._floor_sensor)
         if curr_floor is None:
             # Without the floor sensor we cannot guarantee the floor limit -> heating off.
+            if self._tuner is not None:
+                self._autotune_abort("gulvføler mangler")
             self._pid_signal = 0.0
             self._regulation_status = "Gulvføler mangler (Slukket)"
+            self._publish()
+            return
+
+        if self._tuner is not None:
+            self._autotune_step(curr_floor)
             self._publish()
             return
 
@@ -297,6 +333,102 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._regulation_status = "Mål nået (Slukket)"
 
         self._publish()
+
+    # ---------------------------------------------------------------- autotune
+
+    @property
+    def autotune_active(self):
+        return self._tuner is not None
+
+    def _autotune_abort(self, reason):
+        _LOGGER.warning("Autotune af %s afbrudt: %s", self.name, reason)
+        self._tuner = None
+        self._pid_signal = 0.0
+        self._autotune_msg = f"Autotune afbrudt: {reason}"
+        self._regulation_status = self._autotune_msg
+
+    def _autotune_step(self, curr_floor):
+        """Ét skridt af autotunen. Kaldes i stedet for PID'en, mens en test kører."""
+        tuner = self._tuner
+        target = self._tuner_target
+
+        if target == "room" and self.window_open:
+            return self._autotune_abort("vindue åbent")
+        pv = self._read_temp(self._room_sensor if target == "room" else self._floor_sensor)
+        if pv is None:
+            return self._autotune_abort("føler mangler")
+        # Gulv-sikkerheden gælder altid - og en afkortet test giver ugyldige tal
+        if curr_floor >= self._max_floor_temp - 0.5:
+            return self._autotune_abort("gulvet nærmer sig max gulvtemperatur (sænk udgangstrin eller setpunkt)")
+
+        self._pid_signal = tuner.update(pv, time.monotonic())
+
+        if tuner.failed:
+            return self._autotune_abort(tuner.failed)
+        if tuner.finished:
+            self._tuner_result = tuner.result
+            self._tuner = None
+            # Overgå blødt til PID'en: lad I-leddet holde det udgangsniveau, testen svingede om
+            if self._ki > 0:
+                self._integral_sum = tuner.bias / self._ki
+                self._i_out = tuner.bias
+            if target == "room":
+                self._last_error = self._target_temp_room - pv
+            else:
+                self._last_error = self._target_temp_floor - pv
+            self._autotune_msg = tuner.progress_text() + " - tryk 'Anvend Autotune' for at bruge dem"
+            self._regulation_status = self._autotune_msg
+            return
+        self._autotune_msg = tuner.progress_text()
+        self._regulation_status = f"{self._autotune_msg} - udgang {round(self._pid_signal)}%"
+
+    async def async_start_autotune(self, target=None, output_step=30, noiseband=0.2,
+                                   rule=DEFAULT_RULE, max_hours=24):
+        """Start autotune. Regulerer på rum, hvis driftstilstanden bruger rummet, ellers på gulv."""
+        if self._attr_hvac_mode == HVACMode.OFF:
+            self._autotune_msg = "Autotune kan ikke startes: regulatoren er slukket"
+            self._publish()
+            return
+        if target is None:
+            target = "floor" if self._attr_preset_mode == PRESET_FLOOR_ONLY else "room"
+        pv = self._read_temp(self._room_sensor if target == "room" else self._floor_sensor)
+        if pv is None:
+            self._autotune_msg = "Autotune kan ikke startes: føler mangler"
+            self._publish()
+            return
+        setpoint = self._target_temp_room if target == "room" else self._target_temp_floor
+        # Bias: det udgangsniveau, regulatoren selv har fundet frem til (I-leddet), ellers et gæt
+        if self._pid_signal > 5:
+            bias = self._pid_signal
+        elif self._i_out > 5:
+            bias = self._i_out
+        else:
+            bias = 40.0
+        self._tuner = RelayAutoTuner(
+            setpoint, bias, step=output_step, noiseband=noiseband, rule=rule,
+            max_seconds=max_hours * 3600,
+        )
+        self._tuner_target = target
+        self._tuner_result = None
+        self._frozen = False
+        self._autotune_msg = f"Autotune startet på {'rum' if target == 'room' else 'gulv'} (setpunkt {setpoint} °C)"
+        _LOGGER.info("%s: %s", self.name, self._autotune_msg)
+        await self._async_calculate_heating_demand()
+
+    async def async_stop_autotune(self):
+        if self._tuner is not None:
+            self._autotune_abort("stoppet manuelt")
+            self._publish()
+
+    async def async_apply_autotune(self):
+        """Gem de fundne PID-værdier i rummets indstillinger (genindlæser rummet)."""
+        r = self._tuner_result
+        if not r:
+            self._autotune_msg = "Der er intet autotune-resultat at anvende"
+            self._publish()
+            return
+        options = {**self._entry.options, "kp": r["kp"], "ki": r["ki"], "kd": r["kd"]}
+        self.hass.config_entries.async_update_entry(self._entry, options=options)
 
     def _run_pid(self, curr_room, curr_floor):
         """One PID step. Updates _pid_signal and the PID terms."""

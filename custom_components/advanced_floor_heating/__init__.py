@@ -3,12 +3,14 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+PLATFORMS = ["climate", "sensor", "number", "switch", "button"]
+
 async def async_setup_entry(hass, entry):
     """Set up Advanced Floor Heating from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     
-    # Forward the setup to the platforms (climate, sensor, number)
-    await hass.config_entries.async_forward_entry_setups(entry, ["climate", "sensor", "number"])
+    # Forward the setup to the platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     # Listen for option updates (when you change PID settings in the UI)
     entry.async_on_unload(entry.add_update_listener(update_listener))
@@ -21,7 +23,7 @@ async def update_listener(hass, entry):
 
 async def async_unload_entry(hass, entry):
     """Unload a config entry and its platforms."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["climate", "sensor", "number"])
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
