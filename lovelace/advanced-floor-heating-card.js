@@ -302,6 +302,8 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       mode = 'Slukket';
     } else if (attr.output_frozen) {
       mode = 'Vindue åbent – udgang holdes';
+    } else if (/^Ventilmotion/.test(reg_status)) {
+      mode = 'Ventilmotion';
     } else if (attr.autotune_active) {
       mode = 'Autotune kører';
     } else if (/^Sikkerhedsstop/.test(reg_status)) {

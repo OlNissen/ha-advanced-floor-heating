@@ -13,6 +13,8 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     DOMAIN, CONF_ROOM_SENSOR, CONF_FLOOR_SENSOR, CONF_HEATER_SWITCH,
     CONF_WINDOW_SENSOR, CONF_MAX_FLOOR_TEMP, DEFAULT_MAX_FLOOR_TEMP,
+    CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS,
+    VALVE_EXERCISE_CYCLES, VALVE_EXERCISE_PHASE_SECONDS,
     PRESET_ROOM_ONLY, PRESET_FLOOR_ONLY, PRESET_BOTH_1_MET, PRESET_BOTH_BOTH_MET,
 )
 from .helpers import device_info, update_signal
@@ -95,6 +97,13 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._kd = float(entry.options.get("kd", 1.0))
         self._pid_interval = int(entry.options.get("pid_interval", 30))
         self._cycle_time = int(entry.options.get("cycle_time", 30))
+
+        # Ventilmotion (mod fastsiddende ventiler)
+        self._exercise_days = float(
+            _option(entry, CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS) or 0
+        )
+        self._last_valve_on = time.time()  # sidste gang ventilen var åben (epoch); genindlæses ved genstart
+        self._exercise_start = None        # monotonic-tid hvor en igangværende motion startede
 
         # Internal time constants
         self._i_time = 9000.0
@@ -215,6 +224,15 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
             # Restore the output too, so a window that is open during a restart
             # keeps the output at the value it had before.
+            # Hvornår var ventilen sidst åben? (så motionen overlever genstart)
+            last_on = last_state.attributes.get("last_valve_on")
+            if last_on:
+                try:
+                    from datetime import datetime
+                    self._last_valve_on = datetime.fromisoformat(str(last_on)).timestamp()
+                except (TypeError, ValueError):
+                    pass
+
             if "control_output" in last_state.attributes:
                 self._pid_signal = max(0.0, min(100.0, float(last_state.attributes["control_output"])))
 
@@ -287,6 +305,9 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "pid_e": round(self._current_error, 2),
             "pid_interval": self._pid_interval,
             "pwm_cycle_time": self._cycle_time,
+            "valve_exercise_days": self._exercise_days,
+            "valve_exercising": self._exercise_start is not None,
+            "last_valve_on": self._iso(self._last_valve_on),
             "autotune_active": self.autotune_active,
             "autotune_status": self._autotune_msg,
             "autotune_result": self._tuner_result,
@@ -300,8 +321,60 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             await self._async_calculate_heating_demand()
             await asyncio.sleep(max(1, self._pid_interval))
 
+    @staticmethod
+    def _iso(epoch):
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat() if epoch else None
+
+    def _handle_valve_exercise(self):
+        """Ventilmotion. Returnerer True, mens en motion kører (så PID'en springes over).
+
+        Har ventilen ikke været åben i `valve_exercise_days` dage, motioneres den som i IHC-programmet:
+        3 cyklusser, hver med 10 min åben og 10 min lukket, så termomotoren ikke sætter sig.
+        Gulv-sikkerheden gælder også her.
+        """
+        now = time.monotonic()
+        if self._exercise_start is not None:
+            floor = self._read_temp(self._floor_sensor)
+            elapsed = now - self._exercise_start
+            phase = int(elapsed // VALVE_EXERCISE_PHASE_SECONDS)
+            if phase >= 2 * VALVE_EXERCISE_CYCLES or floor is None or floor >= self._max_floor_temp - 0.5:
+                self._exercise_start = None
+                self._pid_signal = 0.0
+                return False
+            opening = (phase % 2 == 0)
+            self._pid_signal = 100.0 if opening else 0.0
+            if opening:
+                self._last_valve_on = time.time()
+            self._regulation_status = (
+                f"Ventilmotion ({phase // 2 + 1}/{VALVE_EXERCISE_CYCLES}, "
+                f"{'åben' if opening else 'lukket'})"
+            )
+            return True
+
+        if (
+            self._exercise_days > 0
+            and self._tuner is None
+            and time.time() - self._last_valve_on > self._exercise_days * 86400
+        ):
+            floor = self._read_temp(self._floor_sensor)
+            if floor is not None and floor < self._max_floor_temp - 1.0:
+                _LOGGER.info("%s: ventilen har ikke været åben i %s dage - kører ventilmotion",
+                             self.name, self._exercise_days)
+                self._exercise_start = now
+                self._pid_signal = 100.0
+                self._last_valve_on = time.time()
+                self._frozen = False
+                self._regulation_status = f"Ventilmotion (1/{VALVE_EXERCISE_CYCLES}, åben)"
+                return True
+        return False
+
     async def _async_calculate_heating_demand(self):
         """The mathematical heart of the integration."""
+        if self._handle_valve_exercise():
+            self._publish()
+            return
+
         if self._attr_hvac_mode == HVACMode.OFF:
             if self._tuner is not None:
                 self._autotune_abort("regulatoren blev slukket")
@@ -534,6 +607,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             try:
                 if on_time > 0:
                     await self.hass.services.async_call("switch", "turn_on", {"entity_id": self._heater_switch})
+                    self._last_valve_on = time.time()
                     await asyncio.sleep(on_time)
 
                 if off_time > 0:

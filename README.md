@@ -63,6 +63,7 @@ Har et rum flere vinduer og døre, så vælg dem alle – rummet regnes som åbe
 |---|---|---|
 | Vindues- og dørkontakter | tom | Tom = ingen vinduesregel for rummet. Flere kan vælges |
 | Maks. gulvtemperatur | 32 °C | Varmen slukkes, når gulvet når denne temperatur |
+| Ventilmotion (dage) | 7 | Har ventilen ikke været åben i så mange dage, motioneres den: 3 cyklusser med 10 min åben og 10 min lukket (som i IHC-programmet), så termomotoren ikke sætter sig. 0 = slået fra. Virker også, mens rummet er slukket |
 | Kp / Ki / Kd | 10 / 2 / 1 | PID-parametre |
 | PID-interval | 30 sek | Hvor ofte regulatoren regner |
 | PWM-cyklus | 30 sek | Længden på tænd/sluk-cyklussen. For termomotorer (telestater) er **ca. 900–1800 sek** typisk fornuftigt – 30 sek er kun en startværdi |
@@ -210,6 +211,12 @@ data:
 ```
 
 Tun gerne ét rum ad gangen. Genstartes HA midt i en test, afbrydes den, og den starter ikke af sig selv igen.
+
+## 🔧 Pumper (IHC-pumpestyring)
+
+I et IHC-anlæg styres cirkulationspumpen ofte af en funktionsblok, som får et **kald fra hvert rums varmestyring** ("Udgang til pumpestyring"). Blokken starter pumpen efter en forsinkelse (hos os 1 min), stopper den efter en anden (5 min) og motionerer den hver 7. dag i 4 min. Slukker du IHC's varmefunktioner, forsvinder kaldene, og pumperne står stille.
+
+Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_setup.yaml` (se [`ihc/telestat-switches.yaml`](ihc/telestat-switches.yaml) for princippet) og lav en automation pr. pumpe, der tænder pumpestyringen for pumpens rum, mens mindst en af deres telestater er åben, og slukker 5 minutter efter, at alle er lukket. Pumpens egen forsinkelse og motion kan blive i IHC. En ekstra automation kan starte pumpen i 5 minutter, hvis pumpens tilbagemelding ikke har været tændt i 7 dage.
 
 ## 🛡 Sikkerhed
 

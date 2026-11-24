@@ -26,7 +26,8 @@
           "ki": "Ki (integral)",
           "kd": "Kd (differential)",
           "pid_interval": "PID interval (seconds)",
-          "cycle_time": "PWM cycle (seconds)"
+          "cycle_time": "PWM cycle (seconds)",
+          "valve_exercise_days": "Valve exercise: open the valve if it has not been open for this many days (0 = off)"
         }
       }
     }

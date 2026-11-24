@@ -13,6 +13,13 @@ CONF_WINDOW_SENSOR = "window_sensor"
 # Defaults
 DEFAULT_MAX_FLOOR_TEMP = 32.0
 
+# Ventilmotion: åbn ventilen kort, hvis den ikke har været åben i så mange dage (0 = slået fra)
+CONF_VALVE_EXERCISE_DAYS = "valve_exercise_days"
+DEFAULT_VALVE_EXERCISE_DAYS = 7
+# Samme som IHC-programmet: 3 cyklusser, hver 10 min åben og 10 min lukket
+VALVE_EXERCISE_CYCLES = 3
+VALVE_EXERCISE_PHASE_SECONDS = 600
+
 # Operating Modes (Presets)
 # Note: These must match the strings used in climate.py exactly
 PRESET_ROOM_ONLY = "Kun Rum"

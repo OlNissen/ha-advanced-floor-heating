@@ -5,6 +5,7 @@ from homeassistant.helpers import selector
 from .const import (
     DOMAIN, CONF_ROOM_SENSOR, CONF_FLOOR_SENSOR, CONF_HEATER_SWITCH,
     CONF_WINDOW_SENSOR, CONF_MAX_FLOOR_TEMP, DEFAULT_MAX_FLOOR_TEMP,
+    CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS,
 )
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -79,6 +80,12 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                     )),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=20, max=45, step=0.5)
+                ),
+                vol.Required(
+                    CONF_VALVE_EXERCISE_DAYS,
+                    default=float(options.get(CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=90, step=1)
                 ),
                 vol.Required("kp", default=float(options.get("kp", 10.0))): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=1000, step=0.1)

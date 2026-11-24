@@ -26,7 +26,8 @@
           "ki": "I-faktor (Ki) - Integrationstid",
           "kd": "D-faktor (Kd) - Afledet tid",
           "pid_interval": "PID Beregningsinterval (i sekunder)",
-          "cycle_time": "Telestat Cyklustid (PWM i sekunder)"
+          "cycle_time": "Telestat Cyklustid (PWM i sekunder)",
+          "valve_exercise_days": "Ventilmotion: åbn ventilen, hvis den ikke har været åben i så mange dage (0 = fra)"
         }
       }
     }
