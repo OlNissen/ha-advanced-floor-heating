@@ -1,8 +1,7 @@
 /*
  * Advanced Floor Heating Card
  * - Rum- og gulvtemperatur med træk-for-at-ændre-måltemperatur
- * - Viser altid hvilken tilstand/regulering rummet kører efter (under dial'en)
- * - Viser både aktuel og ønsket temperatur ("BØR") på dial'en
+ * - Én lille, stille linje under dial'en: hvad rummet regulerer efter
  * - Graf-knap (kurve-ikonet): historik for rum, gulv, setpunkter og effekt (6 t / 24 t / 3 d / 7 d)
  * - Pro-skuffe (tandhjulet): til/fra, tilstand, ventil og PID-data
  */
@@ -88,10 +87,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
             </div>
           </div>
 
-          <div id="mode-box" style="width: 100%; text-align: center; margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
-            <span id="mode-preset" style="font-size: 12px; font-weight: 600; color: var(--primary-text-color);"></span>
-            <span id="mode-status" style="font-size: 12px; color: var(--secondary-text-color);"></span>
-          </div>
+          <div id="mode-line" style="width: 100%; text-align: center; margin-top: 4px; font-size: 11px; letter-spacing: 0.3px; color: var(--secondary-text-color); opacity: 0.8;"></div>
 
           <div id="pro-panel" style="display: none; width: 100%; border-top: 1px solid var(--divider-color); padding-top: 16px; margin-top: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--divider-color); padding-bottom: 12px; margin-bottom: 12px; width: 100%;">
@@ -227,22 +223,17 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     let temp_bottom = showTarget ? floor_bor : floor_er;
     let text_top = "RUM";
     let text_bottom = "GULV";
-    // Lille ekstra-tal ved overskriften: viser det modsatte af det store tal (BØR = ønsket, ER = aktuel)
-    let sub_top = showTarget ? `ER ${room_er.toFixed(1)}°` : `BØR ${room_bor.toFixed(1)}°`;
-    let sub_bottom = showTarget ? `ER ${floor_er.toFixed(1)}°` : `BØR ${floor_bor.toFixed(1)}°`;
 
     if (reg_status === "Kun Gulv" || reg_status === "Floor Only" || attr.preset_mode === "Kun Gulv") {
       temp_top = showTarget ? floor_bor : floor_er;
       temp_bottom = showTarget ? room_bor : room_er;
       text_top = "GULV";
       text_bottom = "RUM";
-      sub_top = showTarget ? `ER ${floor_er.toFixed(1)}°` : `BØR ${floor_bor.toFixed(1)}°`;
-      sub_bottom = showTarget ? `ER ${room_er.toFixed(1)}°` : `BØR ${room_bor.toFixed(1)}°`;
     }
 
     if (!this._isDraggingRoom && !this._timeoutRoom) {
       this.querySelector('#temp-top-val').innerText = `${temp_top.toFixed(1)}°`;
-      this.querySelector('#label-top').innerText = `${text_top} · ${sub_top}`;
+      this.querySelector('#label-top').innerText = text_top;
       this.querySelector('#label-top').style.color = "var(--secondary-text-color)";
     }
 
@@ -263,28 +254,34 @@ class AdvancedFloorHeatingCard extends HTMLElement {
 
       if (!this._isDraggingFloor && !this._timeoutFloor) {
         this.querySelector('#temp-bottom-val').innerText = `${temp_bottom.toFixed(1)}°`;
-        this.querySelector('#label-bottom').innerText = `${text_bottom} · ${sub_bottom}`;
+        this.querySelector('#label-bottom').innerText = text_bottom;
         this.querySelector('#label-bottom').style.color = "var(--secondary-text-color)";
       }
     }
 
-    // --- TILSTAND: hvilken regulering kører rummet efter (altid synlig) ---
-    const presetEl = this.querySelector('#mode-preset');
-    const statusEl = this.querySelector('#mode-status');
+    // --- TILSTAND: én lille, stille linje om hvad rummet regulerer efter ---
+    const modeEl = this.querySelector('#mode-line');
+    let mode = '';
     if (state.state === 'off') {
-      presetEl.innerText = 'Slukket';
-      statusEl.innerText = '';
-    } else {
-      presetEl.innerText = attr.preset_mode ? `Tilstand: ${attr.preset_mode}` : '';
-      let line = reg_status || '';
-      if (attr.control_output !== undefined && attr.control_output !== null) {
-        line = `${line ? line + ' · ' : ''}effekt ${Math.round(attr.control_output)}%`;
-      }
-      statusEl.innerText = line;
+      mode = 'Slukket';
+    } else if (attr.output_frozen) {
+      mode = 'Vindue åbent – udgang holdes';
+    } else if (attr.autotune_active) {
+      mode = 'Autotune kører';
+    } else if (/^Sikkerhedsstop/.test(reg_status)) {
+      mode = 'Sikkerhedsstop – gulv for varmt';
+    } else if (/mangler/i.test(reg_status)) {
+      mode = reg_status.replace(/\s*\(.*\)\s*$/, '');
+    } else if (/^Kun Rum$/.test(reg_status) || /^Kun Gulv$/.test(reg_status)) {
+      mode = `Regulerer kun efter ${reg_status.slice(4).toLowerCase()}`;
+    } else if (/^(Rum|Gulv)/.test(reg_status)) {
+      mode = `Regulerer efter ${reg_status.split(' ')[0].toLowerCase()}`;
+    } else if (/^Mål nået/.test(reg_status)) {
+      mode = 'Mål nået';
     }
-    presetEl.style.display = presetEl.innerText ? 'block' : 'none';
-    statusEl.style.display = statusEl.innerText ? 'block' : 'none';
-    statusEl.style.color = attr.output_frozen ? '#2196f3' : (attr.autotune_active ? '#9c27b0' : 'var(--secondary-text-color)');
+    modeEl.innerText = mode;
+    modeEl.style.display = mode ? 'block' : 'none';
+    modeEl.style.color = (attr.output_frozen || attr.autotune_active) ? 'var(--primary-color)' : 'var(--secondary-text-color)';
 
     const minT = 15;
     const maxT = 30;
@@ -360,7 +357,9 @@ class AdvancedFloorHeatingCard extends HTMLElement {
         </div>
         <div id="g-body"></div>
       </div>`;
-    document.body.appendChild(overlay);
+    // Skal ligge inde i HA's komponent-træ (ikke i document.body), ellers mangler graf-kortene
+    // oversættelser/kontekst og tegner ikke noget.
+    this.appendChild(overlay);
     this._overlay = overlay;
 
     const attr = this._hass.states[this.config.entity].attributes;
