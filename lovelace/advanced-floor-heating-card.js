@@ -30,6 +30,8 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       entity: "",
       switch_entity: "",
       show_name: true,
+      show_status: true,
+      dim_markers: true,
       primary_info: "current"
     };
   }
@@ -256,7 +258,10 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     let text_top = "RUM";
     let text_bottom = "GULV";
 
-    if (reg_status === "Kun Gulv" || reg_status === "Floor Only" || attr.preset_mode === "Kun Gulv") {
+    // Med dæmpede knapper (standard) står rum altid øverst og gulv nederst; den zone, der ikke
+    // bruges i den valgte tilstand, dæmpes i stedet for at bytte plads.
+    const dimMarkers = this.config.dim_markers !== false;
+    if (!dimMarkers && (reg_status === "Kun Gulv" || reg_status === "Floor Only" || attr.preset_mode === "Kun Gulv")) {
       temp_top = showTarget ? floor_bor : floor_er;
       temp_bottom = showTarget ? room_bor : room_er;
       text_top = "GULV";
@@ -311,6 +316,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     } else if (/^Mål nået/.test(reg_status)) {
       mode = 'Mål nået';
     }
+    if (this.config.show_status === false) mode = '';
     modeEl.innerText = mode;
     modeEl.style.display = mode ? 'block' : 'none';
     modeEl.style.color = (attr.output_frozen || attr.autotune_active) ? 'var(--primary-color)' : 'var(--secondary-text-color)';
@@ -342,6 +348,28 @@ class AdvancedFloorHeatingCard extends HTMLElement {
         this.querySelector('#marker-floor').setAttribute('cx', 130 + 100 * Math.cos(floorMarkerRad));
         this.querySelector('#marker-floor').setAttribute('cy', 130 + 100 * Math.sin(floorMarkerRad));
       }
+    }
+
+    // --- SETPUNKT-KNAPPERNE: tændt / dæmpet / slukket efter tilstand ---
+    //  tændt   = zonen bruges til reguleringen lige nu
+    //  dæmpet  = zonen bruges ikke i den valgte tilstand (Kun Rum / Kun Gulv) eller er sat på pause (vindue åbent)
+    //  slukket = regulatoren er slukket
+    const roomMk = this.querySelector('#marker-room');
+    const floorMk = this.querySelector('#marker-floor');
+    const styleMarker = (el, level, color) => {
+      el.style.opacity = level === 'on' ? '1' : (level === 'dim' ? '0.4' : '0.25');
+      el.setAttribute('stroke', level === 'off' ? 'var(--disabled-text-color, #888)' : color);
+    };
+    if (dimMarkers) {
+      const isOff = state.state === 'off';
+      const preset = attr.preset_mode;
+      const roomUsed = preset !== 'Kun Gulv' && !attr.output_frozen;
+      const floorUsed = preset !== 'Kun Rum';
+      styleMarker(roomMk, isOff ? 'off' : (roomUsed ? 'on' : 'dim'), '#f44336');
+      styleMarker(floorMk, isOff ? 'off' : (floorUsed ? 'on' : 'dim'), '#ff9800');
+    } else {
+      styleMarker(roomMk, 'on', '#f44336');
+      styleMarker(floorMk, 'on', '#ff9800');
     }
 
     // Hold graferne (hvis de er åbne) opdateret
@@ -652,6 +680,14 @@ class AdvancedFloorHeatingCardEditor extends HTMLElement {
           <input type="checkbox" id="show_name" ${this._config.show_name !== false ? 'checked' : ''} style="margin-right: 8px; width: 16px; height: 16px;">
           <label for="show_name" style="font-size: 14px; color: var(--primary-text-color);">Vis Titel på kortet</label>
         </div>
+        <div style="display: flex; align-items: center;">
+          <input type="checkbox" id="show_status" ${this._config.show_status !== false ? 'checked' : ''} style="margin-right: 8px; width: 16px; height: 16px;">
+          <label for="show_status" style="font-size: 14px; color: var(--primary-text-color);">Vis statustekst i bunden (hvad der regulerer)</label>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <input type="checkbox" id="dim_markers" ${this._config.dim_markers !== false ? 'checked' : ''} style="margin-right: 8px; width: 16px; height: 16px;">
+          <label for="dim_markers" style="font-size: 14px; color: var(--primary-text-color);">Dæm setpunkt-knapperne efter tilstand (tændt/dæmpet/slukket)</label>
+        </div>
         <div style="display: flex; flex-direction: column;">
           <label style="font-size: 14px; margin-bottom: 4px; color: var(--secondary-text-color);">Standardvisning i midten</label>
           <select id="primary_info" style="padding: 8px; border: 1px solid var(--divider-color); border-radius: 4px; background: var(--card-background-color); color: var(--primary-text-color);">
@@ -666,6 +702,8 @@ class AdvancedFloorHeatingCardEditor extends HTMLElement {
     this.querySelector('#switch_entity').addEventListener('change', this._valueChanged.bind(this));
     this.querySelector('#name').addEventListener('input', this._valueChanged.bind(this));
     this.querySelector('#show_name').addEventListener('change', this._valueChanged.bind(this));
+    this.querySelector('#show_status').addEventListener('change', this._valueChanged.bind(this));
+    this.querySelector('#dim_markers').addEventListener('change', this._valueChanged.bind(this));
     this.querySelector('#primary_info').addEventListener('change', this._valueChanged.bind(this));
   }
 

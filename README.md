@@ -164,7 +164,19 @@ type: custom:advanced-floor-heating-card
 entity: climate.stue
 switch_entity: switch.stue_telestat   # valgfri: viser om ventilen er åben
 name: Stue
+show_status: true    # false = skjul den lille tilstandslinje i bunden
+dim_markers: true    # false = knapperne er altid tændte (og rum/gulv bytter plads i "Kun Gulv")
 ```
+
+**Setpunkt-knapperne følger tilstanden** (med `dim_markers: true`, som er standard):
+
+| Knap | Når den er |
+|---|---|
+| Fuld | zonen bruges til reguleringen lige nu |
+| Dæmpet | zonen ikke bruges i den valgte tilstand (`Kun Rum` dæmper gulv, `Kun Gulv` dæmper rum) eller er sat på pause (rum, mens vinduet er åbent) |
+| Næsten slukket og grå | regulatoren er slukket |
+
+Rum står altid øverst og gulv nederst. Begge valg findes også i kortets editor.
 
 ## 🎛 Autotune af PID
 
