@@ -253,6 +253,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "floor_target_temperature": self._target_temp_floor,
             "max_floor_temperature": self._max_floor_temp,
             "window_sensor": self._window_sensor,
+            # Bruges af Lovelace-kortet til at vise historik (graf)
+            "room_sensor": self._room_sensor,
+            "floor_sensor": self._floor_sensor,
+            "heater_switch": self._heater_switch,
             "window_open": self.window_open,
             "output_frozen": self._frozen,
             "control_output": round(self._pid_signal, 2),

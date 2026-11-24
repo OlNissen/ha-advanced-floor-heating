@@ -148,6 +148,24 @@ data:
   temperature: 21.5
 ```
 
+## 🃏 Lovelace-kort (`custom:advanced-floor-heating-card`)
+
+Filen [`lovelace/advanced-floor-heating-card.js`](lovelace/advanced-floor-heating-card.js) er et samlet kort pr. rum:
+
+- **Dial** med rum (øverst) og gulv (nederst). Træk i dial'en for at ændre måltemperatur. Ved overskrifterne står både aktuel og ønsket temperatur, f.eks. `RUM · BØR 21.0°`.
+- **Tilstand altid synlig** under dial'en: driftstilstanden (`Rum & Gulv (Begge Opfyldt)`) og hvad der regulerer lige nu (`Rum (Størst behov) · effekt 62%`). Blå tekst = udgangen er frosset (vindue åbent), lilla = autotune kører.
+- **Graf-knap** (kurve-ikonet øverst til højre): åbner historik for rum, gulv, rum-/gulv-setpunkt, effekt og ventil. Vælg 6 timer, 24 timer, 3 dage eller 7 dage.
+- **Tandhjul**: til/fra, driftstilstand, ventil og PID-data.
+
+Installation: kopiér filen til `config/www/`, og tilføj den som ressource (**Indstillinger → Dashboards → ⋮ → Ressourcer → Tilføj**): URL `/local/advanced-floor-heating-card.js`, type *JavaScript-modul*. Ændrer du filen, så hæv `?v=…` på URL'en for at tvinge browseren til at hente den igen.
+
+```yaml
+type: custom:advanced-floor-heating-card
+entity: climate.stue
+switch_entity: switch.stue_telestat   # valgfri: viser om ventilen er åben
+name: Stue
+```
+
 ## 🎛 Autotune af PID
 
 Autotune finder selv Kp og Ki til et rum. Den bruger **relæ-metoden** (Åström-Hägglund, samme princip som `smart_thermostat`):
