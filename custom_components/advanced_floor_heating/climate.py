@@ -21,6 +21,15 @@ from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 _LOGGER = logging.getLogger(__name__)
 
 
+def _as_list(value):
+    """Gammel opsætning gemte én kontakt som tekst - nu er det en liste."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return [v for v in value if v]
+
+
 def _option(entry, key, default=None):
     """Read a setting: options (set in the UI later) win over the initial config data."""
     if key in entry.options:
@@ -77,7 +86,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._floor_sensor = entry.data[CONF_FLOOR_SENSOR]
         self._heater_switch = entry.data[CONF_HEATER_SWITCH]
         # Optional: binary_sensor of the window(s) in this room
-        self._window_sensor = _option(entry, CONF_WINDOW_SENSOR) or None
+        # Optional: ét eller flere vindues-/dørkontakter (binary_sensor) i rummet
+        self._window_sensors = _as_list(_option(entry, CONF_WINDOW_SENSOR))
 
         # Read settings from config options
         self._kp = float(entry.options.get("kp", 10.0))
@@ -149,16 +159,23 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             return None
 
     @property
-    def window_open(self):
-        """True if a window sensor is configured and reports 'on'.
+    def open_sensors(self):
+        """Liste over de vindues-/dørkontakter, der siger 'åben' lige nu."""
+        out = []
+        for sensor in self._window_sensors:
+            state = self.hass.states.get(sensor)
+            if state is not None and state.state == STATE_ON:
+                out.append(sensor)
+        return out
 
-        A missing/unavailable window sensor counts as closed, so a broken sensor
-        can never keep the heating frozen forever.
+    @property
+    def window_open(self):
+        """True hvis NOGEN af rummets vinduer/døre er åbne.
+
+        En manglende/unavailable kontakt tæller som lukket, så en defekt sensor
+        aldrig kan holde varmen frosset for evigt.
         """
-        if not self._window_sensor:
-            return False
-        state = self.hass.states.get(self._window_sensor)
-        return state is not None and state.state == STATE_ON
+        return len(self.open_sensors) > 0
 
     def _publish(self):
         """Write own state and tell the sensor/number entities of this room to refresh."""
@@ -202,10 +219,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                 self._pid_signal = max(0.0, min(100.0, float(last_state.attributes["control_output"])))
 
         # React immediately when the window opens or closes
-        if self._window_sensor:
+        if self._window_sensors:
             self.async_on_remove(
                 async_track_state_change_event(
-                    self.hass, [self._window_sensor], self._async_window_changed
+                    self.hass, self._window_sensors, self._async_window_changed
                 )
             )
 
@@ -252,7 +269,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "floor_temperature": curr_floor if curr_floor is not None else 0.0,
             "floor_target_temperature": self._target_temp_floor,
             "max_floor_temperature": self._max_floor_temp,
-            "window_sensor": self._window_sensor,
+            "window_sensor": self._window_sensors,
+            "open_sensors": self.open_sensors,
             # Bruges af Lovelace-kortet til at vise historik (graf)
             "room_sensor": self._room_sensor,
             "floor_sensor": self._floor_sensor,

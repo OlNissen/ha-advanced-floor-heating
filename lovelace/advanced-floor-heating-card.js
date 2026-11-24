@@ -67,6 +67,11 @@ class AdvancedFloorHeatingCard extends HTMLElement {
         <ha-card style="padding: 20px; background: var(--card-background-color); border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, none); display: flex; flex-direction: column; align-items: center; transition: all 0.3s ease-in-out; position: relative; overflow: hidden;">
 
           <ha-icon icon="mdi:cog" id="btn-cog" style="position: absolute; top: 16px; right: 16px; cursor: pointer; color: var(--secondary-text-color); transition: color 0.3s;"></ha-icon>
+          <div id="badges" style="position: absolute; top: 16px; left: 16px; display: flex; gap: 8px; align-items: center;">
+            <ha-icon icon="mdi:window-open-variant" id="badge-window" style="display: none; --mdc-icon-size: 20px; color: var(--primary-color);"></ha-icon>
+            <ha-icon icon="mdi:auto-fix" id="badge-tune" style="display: none; --mdc-icon-size: 20px; color: #9c27b0; animation: aft-pulse 1.6s ease-in-out infinite;"></ha-icon>
+          </div>
+          <style>@keyframes aft-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }</style>
           <ha-icon icon="mdi:chart-line" id="btn-graph" title="Vis graf" style="position: absolute; top: 16px; right: 48px; cursor: pointer; color: var(--secondary-text-color); transition: color 0.3s;"></ha-icon>
 
           <div id="card-title" style="font-size: 1.2rem; font-weight: 500; color: var(--primary-text-color); margin-bottom: 10px;">Gulvvarme</div>
@@ -344,6 +349,18 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       }
     }
 
+    // --- Små ikoner øverst til venstre: vindue/dør åben og autotune ---
+    const winBadge = this.querySelector('#badge-window');
+    const tuneBadge = this.querySelector('#badge-tune');
+    const openList = Array.isArray(attr.open_sensors) ? attr.open_sensors : [];
+    const windowOpen = attr.window_open === true || openList.length > 0;
+    winBadge.style.display = windowOpen ? 'inline-flex' : 'none';
+    winBadge.title = openList.length
+      ? 'Åben: ' + openList.map(id => (hass.states[id] && hass.states[id].attributes.friendly_name) || id).join(', ')
+      : 'Vindue/dør åben';
+    tuneBadge.style.display = attr.autotune_active ? 'inline-flex' : 'none';
+    tuneBadge.title = attr.autotune_status || 'Autotune kører';
+
     // --- SETPUNKT-KNAPPERNE: tændt / dæmpet / slukket efter tilstand ---
     //  tændt   = zonen bruges til reguleringen lige nu
     //  dæmpet  = zonen bruges ikke i den valgte tilstand (Kun Rum / Kun Gulv) eller er sat på pause (vindue åbent)
@@ -363,8 +380,11 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     if (dimMarkers) {
       const isOff = state.state === 'off';
       const preset = attr.preset_mode;
-      const roomUsed = preset !== 'Kun Gulv' && !attr.output_frozen;
-      const floorUsed = preset !== 'Kun Rum';
+      // I kombinerede tilstande afgør kun én zone ad gangen ("Rum (Størst behov)" / "Gulv (Nærmest mål)"):
+      // den anden dæmpes.
+      const deciding = /^Rum/.test(reg_status) ? 'room' : (/^Gulv/.test(reg_status) ? 'floor' : 'both');
+      const roomUsed = preset !== 'Kun Gulv' && !attr.output_frozen && deciding !== 'floor';
+      const floorUsed = preset !== 'Kun Rum' && deciding !== 'room';
       styleMarker(roomMk, isOff ? 'off' : (roomUsed ? 'on' : 'dim'), '#f44336');
       styleMarker(floorMk, isOff ? 'off' : (floorUsed ? 'on' : 'dim'), '#ff9800');
     } else {

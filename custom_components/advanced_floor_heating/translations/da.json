@@ -9,7 +9,7 @@
           "room_sensor": "Rumtemperatur sensor (Luft)",
           "floor_sensor": "Gulvtemperatur sensor (Overflade)",
           "heater_switch": "Relæ til gulvvarmekreds",
-          "window_sensor": "Vindues-sensor (valgfri)"
+          "window_sensor": "Vindues- og dørkontakter (valgfri)"
         }
       }
     }
@@ -20,7 +20,7 @@
         "title": "Justering af PID Regulator",
         "description": "Er vinduet åbent, fryses udgangen, så der ikke reguleres efter rumtemperaturen. Kun \"Kun Gulv\" regulerer videre.",
         "data": {
-          "window_sensor": "Vindues-sensor (valgfri, tom = ingen vinduesregel)",
+          "window_sensor": "Vindues- og dørkontakter (valgfri, tom = ingen vinduesregel)",
           "max_floor_temp": "Maks. gulvtemperatur (°C) - varmen slukkes herover",
           "kp": "P-faktor (Kp) - Forstærkning",
           "ki": "I-faktor (Ki) - Integrationstid",

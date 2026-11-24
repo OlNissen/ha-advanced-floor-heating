@@ -50,9 +50,9 @@ Det skal du selv angive for hvert rum:
 | Rumtemperatur-sensor | `sensor` med device class *temperature* | `sensor.stue_temperatur` |
 | Gulvtemperatur-sensor | `sensor` med device class *temperature* | `sensor.stue_gulv_temperatur` |
 | Kontakt til varmen | `switch` der åbner/lukker for varmen (termomotor/relæ) | `switch.stue_varme` |
-| Vindues-sensor *(valgfri)* | `binary_sensor` – `on` = vindue åbent | `binary_sensor.stue_vindue` |
+| Vindues- og dørkontakter *(valgfri)* | Én eller flere `binary_sensor` – `on` = åben. Rum med både dør og vindue kan have begge. | `binary_sensor.stue_vindue`, `binary_sensor.stue_dor` |
 
-Har et rum flere vinduer, så lav en samlet sensor først (Indstillinger → Enheder & tjenester → Hjælpere → *Gruppe* → *Binær sensorgruppe*, med "vindue" som type) og vælg den.
+Har et rum flere vinduer og døre, så vælg dem alle – rummet regnes som åbent, så snart **en** af dem er åben (du behøver ikke lave en gruppe først).
 
 > **Tip:** Rumnavnet bliver til entity-id'et. Ændrer du navnet bagefter, ændres entity-id'et ikke automatisk – og dashboardet peger på entity-id'er.
 
@@ -61,7 +61,7 @@ Har et rum flere vinduer, så lav en samlet sensor først (Indstillinger → Enh
 
 | Indstilling | Standard | Forklaring |
 |---|---|---|
-| Vindues-sensor | tom | Tom = ingen vinduesregel for rummet |
+| Vindues- og dørkontakter | tom | Tom = ingen vinduesregel for rummet. Flere kan vælges |
 | Maks. gulvtemperatur | 32 °C | Varmen slukkes, når gulvet når denne temperatur |
 | Kp / Ki / Kd | 10 / 2 / 1 | PID-parametre |
 | PID-interval | 30 sek | Hvor ofte regulatoren regner |
@@ -155,6 +155,7 @@ Filen [`lovelace/advanced-floor-heating-card.js`](lovelace/advanced-floor-heatin
 - **Dial** med rum (øverst) og gulv (nederst). Træk i dial'en for at ændre måltemperatur. Kortet er med vilje enkelt og stille.
 - **Én lille linje** under dial'en fortæller, hvad rummet regulerer efter (`Regulerer efter rum`, `Regulerer kun efter gulv`, `Mål nået`, `Slukket`). Ved åbent vindue står der `Vindue åbent – udgang holdes`, og under autotune `Autotune kører`.
 - **Graf-knap** (kurve-ikonet ved tandhjulet): åbner historik for rum, gulv, rum-/gulv-setpunkt, effekt og ventil. Vælg 6 timer, 24 timer, 3 dage eller 7 dage.
+- **Små ikoner øverst til venstre** (kun når de er relevante): et åbent vindue/en åben dør (hold musen over for at se hvilken) og en pulserende lilla tryllestav, mens autotune kører.
 - **Tandhjul**: åbner indstillingerne i en popup (samme stil som grafen) med til/fra, driftstilstand, ventil, autotune og PID-data (her står også effekt og den fulde status). Kortet selv forbliver småt og stille.
 
 Installation: kopiér filen til `config/www/`, og tilføj den som ressource (**Indstillinger → Dashboards → ⋮ → Ressourcer → Tilføj**): URL `/local/advanced-floor-heating-card.js`, type *JavaScript-modul*. Ændrer du filen, så hæv `?v=…` på URL'en for at tvinge browseren til at hente den igen.
@@ -172,8 +173,8 @@ dim_markers: true    # false = knapperne er altid fulde (ingen dæmpning/sluknin
 
 | Knap | Når den er |
 |---|---|
-| Fuld | zonen bruges til reguleringen lige nu |
-| Dæmpet | zonen ikke bruges i den valgte tilstand (`Kun Rum` dæmper gulv, `Kun Gulv` dæmper rum) eller er sat på pause (rum, mens vinduet er åbent) |
+| Fuld | zonen er den, der afgør reguleringen lige nu (i kombinerede tilstande: den zone, status-linjen nævner, f.eks. `Rum (Størst behov)`) |
+| Dæmpet | den anden zone, når kun den ene afgør (i `Rum & Gulv` dæmpes gulvet, mens rummet afgør, og omvendt), eller rummet er sat på pause, mens et vindue/en dør er åben |
 | Næsten slukket og grå | regulatoren er slukket |
 
 Rum står altid øverst og gulv nederst. I tilstanden `Kun Gulv` er rum-justeringen skjult helt (knap og træk), fordi rummet ikke bruges, og i `Kun Rum` er gulv-justeringen skjult på samme måde. Begge valg findes også i kortets editor.

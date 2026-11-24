@@ -30,7 +30,7 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.EntitySelectorConfig(domain="switch")
                 ),
                 vol.Optional(CONF_WINDOW_SENSOR): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor")
+                    selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
             }),
         )
@@ -50,11 +50,15 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
         window_sensor = options.get(
             CONF_WINDOW_SENSOR, self.config_entry.data.get(CONF_WINDOW_SENSOR)
         )
+        # Gammel opsætning: én kontakt som tekst -> liste
+        if isinstance(window_sensor, str):
+            window_sensor = [window_sensor]
+        window_sensor = window_sensor or []
 
         if user_input is not None:
             data = dict(user_input)
             # Store the key even when cleared, so options override the old value
-            data.setdefault(CONF_WINDOW_SENSOR, None)
+            data.setdefault(CONF_WINDOW_SENSOR, [])
             return self.async_create_entry(title="", data=data)
         
         window_key = (
@@ -65,7 +69,7 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema({
                 window_key: selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor")
+                    selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
                 vol.Required(
                     CONF_MAX_FLOOR_TEMP,
