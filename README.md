@@ -174,7 +174,7 @@ dim_markers: true    # false = knapperne er altid fulde (ingen dæmpning/sluknin
 
 | Knap | Når den er |
 |---|---|
-| Fuld | zonen skal opfyldes: begge i `Rum & Gulv (Begge Opfyldt)`, kun den zone, der regulerer lige nu, i `Rum & Gulv (1 Opfyldt)` (f.eks. `Rum (Nærmest mål)`) |
+| Fuld | zonen skal opfyldes: begge i `Rum & Gulv (Begge Opfyldt)`, kun den zone, der er tættest på sit mål (og dermed afgør), i `Rum & Gulv (1 Opfyldt)` |
 | Dæmpet | den anden zone i `Rum & Gulv (1 Opfyldt)`, når kun den ene afgør, eller rummet, mens et vindue/en dør er åben |
 | Næsten slukket og grå | regulatoren er slukket |
 

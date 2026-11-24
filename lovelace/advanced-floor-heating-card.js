@@ -387,7 +387,12 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       // ("Rum (Nærmest mål)" / "Gulv (Nærmest mål)"), er tændt, og den anden dæmpes.
       let deciding = 'both';
       if (preset === 'Rum & Gulv (1 Opfyldt)') {
-        deciding = /^Rum/.test(reg_status) ? 'room' : (/^Gulv/.test(reg_status) ? 'floor' : 'both');
+        // Regn det selv ud af temperaturerne (samme regel som reguleringen: den zone, der er
+        // tættest på sit mål, afgør). Statusteksten kan ikke bruges, fordi den bliver til
+        // "Mål nået (Slukket)", når udgangen er 0 %.
+        const errRoom = room_bor - room_er;
+        const errFloor = floor_bor - floor_er;
+        deciding = hasFloorSensor ? (errRoom <= errFloor ? 'room' : 'floor') : 'both';
       }
       const roomUsed = preset !== 'Kun Gulv' && !attr.output_frozen && deciding !== 'floor';
       const floorUsed = preset !== 'Kun Rum' && deciding !== 'room';
