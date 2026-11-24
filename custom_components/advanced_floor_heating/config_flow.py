@@ -19,7 +19,7 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required("name", default="Living Room"): str,
+                vol.Required("name", default="Mit Rum"): str,
                 vol.Required(CONF_ROOM_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),

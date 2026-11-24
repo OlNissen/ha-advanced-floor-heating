@@ -6,10 +6,10 @@ PID-baseret varmestyring til **gulvvarme** (træge systemer, f.eks. IHC med term
 
 - **Ét rum = én regulator.** Tilføj integrationen igen for hvert rum – der skal ikke kopieres kode.
 - **Rum- og gulvføler i samme regulator** med 4 driftstilstande (preset):
-  - `Room Only` – regulerer kun på rumtemperaturen
-  - `Floor Only` – regulerer kun på gulvtemperaturen
-  - `Room & Floor (1 Met)` – stopper, når det første mål er nået (komfort)
-  - `Room & Floor (Both Met)` – stopper først, når begge mål er nået
+  - `Kun Rum` – regulerer kun på rumtemperaturen
+  - `Kun Gulv` – regulerer kun på gulvtemperaturen
+  - `Rum & Gulv (1 Opfyldt)` – stopper, når det første mål er nået (komfort)
+  - `Rum & Gulv (Begge Opfyldt)` – stopper først, når begge mål er nået
 - **PID med anti-windup** og **PWM-udgang** (kontakten tændes/slukkes i cyklusser).
 - **Vinduesregel (valgfri):** er vinduet åbent, **fryses udgangen**, så der ikke reguleres efter den (kolde) rumtemperatur. Se [Vinduesregel](#-vinduesregel).
 - **Maks. gulvtemperatur** pr. rum – varmen slukkes automatisk over grænsen.
@@ -78,11 +78,11 @@ Hvis rummet har en vindues-sensor, og vinduet er åbent:
 - Regulatoren **regulerer ikke efter rumtemperaturen** (den falder jo bare, fordi der er åbent).
 - I stedet **fryses udgangen** (varmeeffekten i %) på den værdi, den havde. PID'ens integral og fejl ændres ikke, mens vinduet er åbent.
 - Når vinduet lukkes igen, fortsætter reguleringen **uden spring** (D-leddet nulstilles).
-- **`Floor Only`** regulerer kun på gulvet og påvirkes derfor ikke af vinduet.
+- **`Kun Gulv`** regulerer kun på gulvet og påvirkes derfor ikke af vinduet.
 - **Gulv-sikkerheden gælder altid:** når gulvet når maks. gulvtemperatur, slukkes varmen – også mens udgangen er frosset.
 - Mangler eller er vindues-sensoren `unavailable`, tæller vinduet som *lukket* – så en defekt sensor aldrig holder varmen frosset for evigt.
 
-Status ses i rummets attributter (`window_open`, `output_frozen`) og i status-sensoren (`Window open - output frozen at 40%`).
+Status ses i rummets attributter (`window_open`, `output_frozen`) og i status-sensoren (`Vindue åbent - udgang frosset ved 40%`).
 
 ---
 
@@ -98,9 +98,9 @@ Gå til **Indstillinger → Enheder & tjenester → Entiteter** og søg efter ru
 | Entity | Hvad |
 |---|---|
 | `climate.stue` | Selve regulatoren |
-| `number.stue_floor_setpoint` | Ønsket gulvtemperatur |
+| `number.stue_gulv_setpunkt` | Ønsket gulvtemperatur |
 | `sensor.stue_pid_signal` | Varmeeffekt (%) |
-| `sensor.stue_regulation_status` | Status-tekst |
+| `sensor.stue_reguleringsstatus` | Status-tekst |
 
 Står dine entity-id'er anderledes (f.eks. `climate.stue_2`), så brug dem i næste trin.
 
@@ -121,10 +121,10 @@ Hvert argument er `entity-id-navn=Pænt navn` (entity-id-navnet er det, der stå
 *(Bruger du YAML-tilstand for dashboards, kan filen i stedet lægges i `config/` og refereres fra `configuration.yaml` under `lovelace: dashboards:`.)*
 
 ### Sådan bruges det
-- **Ønsket rumtemperatur:** stilles på termostat-kortet. I tilstanden `Floor Only` ændrer termostaten i stedet gulvets måltemperatur.
+- **Ønsket rumtemperatur:** stilles på termostat-kortet. I tilstanden `Kun Gulv` ændrer termostaten i stedet gulvets måltemperatur.
 - **Ønsket gulvtemperatur:** slideren i rum-kortet.
 - **Til/fra:** knapperne `heat` / `off` på termostat-kortet. `off` sætter udgangen til 0 % og slukker for kontakten.
-- **Driftstilstand:** drop-down'en på termostat-kortet (de fire presets).
+- **Driftstilstand:** drop-down'en på termostat-kortet (de fire driftstilstande).
 - Vises preset-valget ikke på termostat-kortet i din HA-version, kan du ændre det via kortets "mere info"-dialog (klik på rummets navn).
 
 ---
@@ -157,6 +157,7 @@ Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `p
 
 - Vinduesregel (frys udgang) og maks. gulvtemperatur som indstilling pr. rum
 - Dashboard + dashboard-generator
+- Danske tekster (driftstilstande, status, navne) er nu også i GitHub-koden – samme som den version, der kørte i HA – plus PWM anti-micro-switching
 - Dansk og engelsk oversættelse af opsætningsskærmene
 - Rettet: gulv-skyderen (`number`) ændrede også rummets måltemperatur
 - Rettet: genindlæsning efterlod gamle løkker kørende; kontakten slukkes nu ved fjernelse

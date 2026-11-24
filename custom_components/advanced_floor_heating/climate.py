@@ -83,7 +83,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._pid_signal = 0.0
         self._integral_sum = 0.0
         self._last_error = 0.0
-        self._regulation_status = "Initializing..."
+        self._regulation_status = "Initialiserer..."
         self._frozen = False  # True while the output is held because a window is open
 
         self._p_out = 0.0
@@ -255,7 +255,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         if self._attr_hvac_mode == HVACMode.OFF:
             self._pid_signal = 0.0
             self._frozen = False
-            self._regulation_status = "Off (HVAC OFF)"
+            self._regulation_status = "Slukket (HVAC OFF)"
             self._publish()
             return
 
@@ -263,7 +263,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         if curr_floor is None:
             # Without the floor sensor we cannot guarantee the floor limit -> heating off.
             self._pid_signal = 0.0
-            self._regulation_status = "Floor sensor missing (Off)"
+            self._regulation_status = "Gulvføler mangler (Slukket)"
             self._publish()
             return
 
@@ -271,18 +271,18 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         # WINDOW RULE: with an open window the room temperature is meaningless
         # (cold draught), so we must not regulate on it. The output is frozen at
-        # its current value until the window is closed again. "Floor Only" does not
+        # its current value until the window is closed again. "Kun Gulv" does not
         # look at the room temperature and therefore keeps regulating normally.
         frozen = uses_room and self.window_open
 
         if frozen:
             self._frozen = True
-            self._regulation_status = f"Window open - output frozen at {round(self._pid_signal)}%"
+            self._regulation_status = f"Vindue åbent - udgang frosset ved {round(self._pid_signal)}%"
         else:
             curr_room = self._read_temp(self._room_sensor) if uses_room else None
             if uses_room and curr_room is None:
                 self._pid_signal = 0.0
-                self._regulation_status = "Room sensor missing (Off)"
+                self._regulation_status = "Rumføler mangler (Slukket)"
                 self._publish()
                 return
 
@@ -291,9 +291,9 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         # Safety stop always wins - also while the output is frozen
         if curr_floor >= self._max_floor_temp:
             self._pid_signal = 0.0
-            self._regulation_status = "Safety stop (Floor too hot!)"
+            self._regulation_status = "Sikkerhedsstop (Gulv for varmt!)"
         elif self._pid_signal == 0 and not frozen:
-            self._regulation_status = "Target reached (Off)"
+            self._regulation_status = "Mål nået (Slukket)"
 
         self._publish()
 
@@ -306,23 +306,23 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         if self._attr_preset_mode == PRESET_BOTH_BOTH_MET:
             if err_r >= err_f:
                 error = err_r
-                self._regulation_status = "Room (Highest demand)"
+                self._regulation_status = "Rum (Størst behov)"
             else:
                 error = err_f
-                self._regulation_status = "Floor (Highest demand)"
+                self._regulation_status = "Gulv (Størst behov)"
         elif self._attr_preset_mode == PRESET_BOTH_1_MET:
             if err_r <= err_f:
                 error = err_r
-                self._regulation_status = "Room (Closest to target)"
+                self._regulation_status = "Rum (Nærmest mål)"
             else:
                 error = err_f
-                self._regulation_status = "Floor (Closest to target)"
+                self._regulation_status = "Gulv (Nærmest mål)"
         elif self._attr_preset_mode == PRESET_ROOM_ONLY:
             error = err_r
-            self._regulation_status = "Room Only"
+            self._regulation_status = "Kun Rum"
         else:
             error = err_f
-            self._regulation_status = "Floor Only"
+            self._regulation_status = "Kun Gulv"
 
         # Coming back from a frozen output: forget the old error so the
         # D-term does not give a spike on the first step.
@@ -361,12 +361,20 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._last_error = error
 
     async def _async_pwm_loop(self):
-        """Converts PID percentage to physical switch cycles."""
+        """Omsætter PID-procent til fysiske tænd/sluk-cyklusser (PWM)."""
         while True:
             cycle = max(1, self._cycle_time)
 
-            on_time = (self._pid_signal / 100.0) * cycle
-            off_time = cycle - on_time
+            # Anti-Micro-Switching: undgå unødvendige klik i relæet
+            if self._pid_signal < 1.0:
+                on_time = 0
+                off_time = cycle
+            elif self._pid_signal > 99.0:
+                on_time = cycle
+                off_time = 0
+            else:
+                on_time = (self._pid_signal / 100.0) * cycle
+                off_time = cycle - on_time
 
             try:
                 if on_time > 0:

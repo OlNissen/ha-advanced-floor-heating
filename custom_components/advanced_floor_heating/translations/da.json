@@ -2,13 +2,13 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tilføj rum til gulvvarmen",
+        "title": "Opsætning af Gulvvarme",
         "description": "Hvert rum får sin egen regulator. Tilføj integrationen igen for hvert rum.",
         "data": {
-          "name": "Rumnavn (f.eks. Stue)",
-          "room_sensor": "Rumtemperatur-sensor",
-          "floor_sensor": "Gulvtemperatur-sensor",
-          "heater_switch": "Kontakt til varmen (termoventil/relæ)",
+          "name": "Navn på rummet",
+          "room_sensor": "Rumtemperatur sensor (Luft)",
+          "floor_sensor": "Gulvtemperatur sensor (Overflade)",
+          "heater_switch": "Relæ til gulvvarmekreds",
           "window_sensor": "Vindues-sensor (valgfri)"
         }
       }
@@ -17,16 +17,16 @@
   "options": {
     "step": {
       "init": {
-        "title": "Indstillinger for rummet",
-        "description": "Er vinduet åbent, fryses udgangen, så der ikke reguleres efter rumtemperaturen. Kun \"Floor Only\" regulerer videre.",
+        "title": "Justering af PID Regulator",
+        "description": "Er vinduet åbent, fryses udgangen, så der ikke reguleres efter rumtemperaturen. Kun \"Kun Gulv\" regulerer videre.",
         "data": {
           "window_sensor": "Vindues-sensor (valgfri, tom = ingen vinduesregel)",
           "max_floor_temp": "Maks. gulvtemperatur (°C) - varmen slukkes herover",
-          "kp": "Kp (proportional)",
-          "ki": "Ki (integral)",
-          "kd": "Kd (differential)",
-          "pid_interval": "PID-interval (sekunder)",
-          "cycle_time": "PWM-cyklus (sekunder)"
+          "kp": "P-faktor (Kp) - Forstærkning",
+          "ki": "I-faktor (Ki) - Integrationstid",
+          "kd": "D-faktor (Kd) - Afledet tid",
+          "pid_interval": "PID Beregningsinterval (i sekunder)",
+          "cycle_time": "Telestat Cyklustid (PWM i sekunder)"
         }
       }
     }

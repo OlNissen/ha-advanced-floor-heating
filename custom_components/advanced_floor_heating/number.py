@@ -14,7 +14,7 @@ class FloorSetpointNumber(UpdateListenerMixin, NumberEntity):
     """Number entity to control the floor target temperature."""
 
     def __init__(self, entry):
-        self._attr_name = f"{entry.data['name']} Floor Setpoint"
+        self._attr_name = f"{entry.data['name']} Gulv Setpunkt"
         self._attr_unique_id = f"{entry.entry_id}_floor_setpoint"
         self._attr_device_info = device_info(entry)
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS

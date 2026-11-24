@@ -51,10 +51,10 @@ views:
               - type: climate-preset-modes
                 style: dropdown
                 preset_modes:
-                  - Room Only
-                  - Floor Only
-                  - Room & Floor (1 Met)
-                  - Room & Floor (Both Met)
+                  - Kun Rum
+                  - Kun Gulv
+                  - Rum & Gulv (1 Opfyldt)
+                  - Rum & Gulv (Begge Opfyldt)
           - type: entities
             show_header_toggle: false
             entities:
@@ -73,11 +73,11 @@ views:
                 attribute: floor_temperature
                 name: Gulvtemperatur
                 suffix: °C
-              - entity: number.stue_floor_setpoint
+              - entity: number.stue_gulv_setpunkt
                 name: Ønsket gulvtemperatur
               - entity: sensor.stue_pid_signal
                 name: Varmeeffekt
-              - entity: sensor.stue_regulation_status
+              - entity: sensor.stue_reguleringsstatus
                 name: Status
               - type: attribute
                 entity: climate.stue
@@ -99,10 +99,10 @@ views:
               - type: climate-preset-modes
                 style: dropdown
                 preset_modes:
-                  - Room Only
-                  - Floor Only
-                  - Room & Floor (1 Met)
-                  - Room & Floor (Both Met)
+                  - Kun Rum
+                  - Kun Gulv
+                  - Rum & Gulv (1 Opfyldt)
+                  - Rum & Gulv (Begge Opfyldt)
           - type: entities
             show_header_toggle: false
             entities:
@@ -121,11 +121,11 @@ views:
                 attribute: floor_temperature
                 name: Gulvtemperatur
                 suffix: °C
-              - entity: number.kontor_floor_setpoint
+              - entity: number.kontor_gulv_setpunkt
                 name: Ønsket gulvtemperatur
               - entity: sensor.kontor_pid_signal
                 name: Varmeeffekt
-              - entity: sensor.kontor_regulation_status
+              - entity: sensor.kontor_reguleringsstatus
                 name: Status
               - type: attribute
                 entity: climate.kontor
@@ -147,10 +147,10 @@ views:
               - type: climate-preset-modes
                 style: dropdown
                 preset_modes:
-                  - Room Only
-                  - Floor Only
-                  - Room & Floor (1 Met)
-                  - Room & Floor (Both Met)
+                  - Kun Rum
+                  - Kun Gulv
+                  - Rum & Gulv (1 Opfyldt)
+                  - Rum & Gulv (Begge Opfyldt)
           - type: entities
             show_header_toggle: false
             entities:
@@ -169,11 +169,11 @@ views:
                 attribute: floor_temperature
                 name: Gulvtemperatur
                 suffix: °C
-              - entity: number.bad_floor_setpoint
+              - entity: number.bad_gulv_setpunkt
                 name: Ønsket gulvtemperatur
               - entity: sensor.bad_pid_signal
                 name: Varmeeffekt
-              - entity: sensor.bad_regulation_status
+              - entity: sensor.bad_reguleringsstatus
                 name: Status
               - type: attribute
                 entity: climate.bad

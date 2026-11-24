@@ -12,9 +12,9 @@ Du finder dem i Indstillinger -> Enheder & tjenester -> Entiteter (søg på "Flo
 
 For hvert rum bruges disse entities (de oprettes automatisk af integrationen):
     climate.<id>                 termostat
-    number.<id>_floor_setpoint   ønsket gulvtemperatur
+    number.<id>_gulv_setpunkt      ønsket gulvtemperatur
     sensor.<id>_pid_signal       varmeeffekt i %
-    sensor.<id>_regulation_status
+    sensor.<id>_reguleringsstatus
 """
 import sys
 
@@ -54,10 +54,10 @@ def room_card(slug, name):
               - type: climate-preset-modes
                 style: dropdown
                 preset_modes:
-                  - Room Only
-                  - Floor Only
-                  - Room & Floor (1 Met)
-                  - Room & Floor (Both Met)
+                  - Kun Rum
+                  - Kun Gulv
+                  - Rum & Gulv (1 Opfyldt)
+                  - Rum & Gulv (Begge Opfyldt)
           - type: entities
             show_header_toggle: false
             entities:
@@ -76,11 +76,11 @@ def room_card(slug, name):
                 attribute: floor_temperature
                 name: Gulvtemperatur
                 suffix: °C
-              - entity: number.{slug}_floor_setpoint
+              - entity: number.{slug}_gulv_setpunkt
                 name: Ønsket gulvtemperatur
               - entity: sensor.{slug}_pid_signal
                 name: Varmeeffekt
-              - entity: sensor.{slug}_regulation_status
+              - entity: sensor.{slug}_reguleringsstatus
                 name: Status
               - type: attribute
                 entity: {c}

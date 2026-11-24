@@ -15,10 +15,10 @@ DEFAULT_MAX_FLOOR_TEMP = 32.0
 
 # Operating Modes (Presets)
 # Note: These must match the strings used in climate.py exactly
-PRESET_ROOM_ONLY = "Room Only"
-PRESET_FLOOR_ONLY = "Floor Only"
-PRESET_BOTH_1_MET = "Room & Floor (1 Met)"
-PRESET_BOTH_BOTH_MET = "Room & Floor (Both Met)"
+PRESET_ROOM_ONLY = "Kun Rum"
+PRESET_FLOOR_ONLY = "Kun Gulv"
+PRESET_BOTH_1_MET = "Rum & Gulv (1 Opfyldt)"
+PRESET_BOTH_BOTH_MET = "Rum & Gulv (Begge Opfyldt)"
 
 # Attributes
 ATTR_PID_SIGNAL = "pid_signal"

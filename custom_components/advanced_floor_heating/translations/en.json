@@ -18,7 +18,7 @@
     "step": {
       "init": {
         "title": "Room settings",
-        "description": "When the window is open the output is frozen, so nothing is regulated on the room temperature. Only \"Floor Only\" keeps regulating.",
+        "description": "When the window is open the output is frozen, so nothing is regulated on the room temperature. Only \"Kun Gulv\" (floor only) keeps regulating.",
         "data": {
           "window_sensor": "Window sensor (optional, empty = no window rule)",
           "max_floor_temp": "Max floor temperature (°C) - heating stops above this",
