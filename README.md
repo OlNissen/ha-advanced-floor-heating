@@ -176,7 +176,7 @@ dim_markers: true    # false = knapperne er altid fulde (ingen dæmpning/sluknin
 | Dæmpet | zonen ikke bruges i den valgte tilstand (`Kun Rum` dæmper gulv, `Kun Gulv` dæmper rum) eller er sat på pause (rum, mens vinduet er åbent) |
 | Næsten slukket og grå | regulatoren er slukket |
 
-Rum står altid øverst og gulv nederst. Begge valg findes også i kortets editor.
+Rum står altid øverst og gulv nederst. I tilstanden `Kun Gulv` er rum-justeringen skjult helt (knap og træk), fordi rummet ikke bruges, og i `Kun Rum` er gulv-justeringen skjult på samme måde. Begge valg findes også i kortets editor.
 
 ## 🎛 Autotune af PID
 
