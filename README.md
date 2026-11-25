@@ -1,76 +1,320 @@
-Advanced Floor Heating for Home Assistant ♨️
-Advanced Floor Heating is a high-performance PID-based climate controller for Home Assistant, specifically designed for high-inertia heating systems like underfloor heating (e.g., IHC systems). This integration simultaneously manages both room and floor temperatures to ensure maximum comfort while protecting your floors from overheating.
+# Advanced Floor Heating til Home Assistant ♨️
 
-✨ Key Features
-Dual-Zone Regulation: Simultaneous control based on both ambient room sensors and floor sensors within a single entity.
+PID-baseret varmestyring til **gulvvarme** (træge systemer, f.eks. IHC med termomotorer/telestater). Hvert rum får sin egen regulator, der styrer efter **rumtemperatur og/eller gulvtemperatur**, så gulvet aldrig bliver for varmt.
 
-Industrial PID Logic: Intelligent control with built-in Anti-Windup (Clamping) to prevent temperature overshoot.
+## ✨ Funktioner
 
-PWM Output (Pulse Width Modulation): Converts the PID percentage output into timed ON/OFF cycles for your thermal actuators (telestats) or relays.
+- **Ét rum = én regulator.** Tilføj integrationen igen for hvert rum – der skal ikke kopieres kode.
+- **Rum- og gulvføler i samme regulator** med 4 driftstilstande (preset):
+  - `Kun Rum` – regulerer kun på rumtemperaturen
+  - `Kun Gulv` – regulerer kun på gulvtemperaturen
+  - `Rum & Gulv (1 Opfyldt)` – stopper, når det første mål er nået (komfort)
+  - `Rum & Gulv (Begge Opfyldt)` – stopper først, når begge mål er nået
+- **PID med anti-windup** og **PWM-udgang** (kontakten tændes/slukkes i cyklusser).
+- **Vinduesregel (valgfri):** er vinduet åbent, **fryses udgangen**, så der ikke reguleres efter den (kolde) rumtemperatur. Se [Vinduesregel](#-vinduesregel).
+- **Master (som i IHC):** én tilstand for hele huset – `Beboet`, `Ubeboet`, `Frostsikker` eller `Slukket` – som sendes ud til alle rum. Hvert rum kan overstyre den. Se [Master](#-master-og-husets-tilstand).
+- **Alarmer** pr. rum og samlet for huset: føler mangler/er gammel, og ventil der ikke varmer. Se [Alarmer](#-alarmer-og-driftstid).
+- **Maks. gulvtemperatur** pr. rum – varmen slukkes automatisk over grænsen.
+- **Gendanner tilstand** efter genstart af Home Assistant (måltemperaturer, preset, PID-integral og udgang).
+- **Dashboard til alle rum** i én visning ([se nedenfor](#-dashboard-til-alle-rum)).
 
-Restore State on Restart: Automatically restores your setpoints and the PID integral sum after a Home Assistant restart—crucial for slow-reacting systems.
+> Der er med vilje **ingen tidsplan/dagstimere**: gulvvarme er så træg, at skift mellem dag/nat-temperatur ikke giver mening. Vil du ændre temperaturen, så ændr måltemperaturen – eller lav en almindelig HA-automation, der kalder `set_room_temperature`.
 
-4 Intelligent Preset Modes:
+---
 
-Room Only: Regulates based solely on air temperature.
+## 🚀 Installation
 
-Floor Only: Regulates based solely on floor temperature.
+### Via HACS (anbefalet)
+1. Åbn **HACS** i Home Assistant.
+2. Tryk på de tre prikker øverst til højre → **Brugerdefinerede repositories**.
+3. Indsæt repo-URL'en `https://github.com/OlNissen/ha-advanced-floor-heating`, vælg kategori **Integration**.
+4. Hent integrationen og **genstart Home Assistant**.
 
-Room & Floor (1 Met): Prioritizes comfort (stops when the first target is reached).
+### Manuelt
+1. Kopiér mappen `custom_components/advanced_floor_heating` til `config/custom_components/` i din Home Assistant (så der ligger `config/custom_components/advanced_floor_heating/manifest.json`).
+2. **Genstart Home Assistant.**
 
-Room & Floor (Both Met): Ensures both zones reach target (stops only when both targets are reached).
+### Opgradering fra 1.0.x
+Du behøver ikke gøre noget ved dine eksisterende rum – entity-id'er, måltemperaturer og indstillinger bevares. Opdatér, genstart, og åbn evt. rummets indstillinger (se nedenfor) for at tilføje vinduessensor. Entiteterne samles nu under én *enhed* pr. rum.
 
-📸 Screenshots
-(Insert your beautiful dashboard screenshots here)
-![Dashboard Preview](https://raw.githubusercontent.com/OlNissen/ha-advanced-floor-heating/main/screenshots/panel_preview.png)
+---
 
-🚀 Installation
-Via HACS (Recommended)
-Open HACS in Home Assistant.
+## ⚙️ Opsæt et rum
 
-Click the three dots in the top right corner and select Custom repositories.
+**Indstillinger → Enheder & tjenester → Tilføj integration → "Advanced Floor Heating".**
+Gentag for hvert rum.
 
-Paste the URL of this repository and select Integration as the category.
+> Der er nu et valg først: **Tilføj et rum** eller **Tilføj Master** (se [Master](#-master-og-husets-tilstand)).
 
-Restart Home Assistant.
+Det skal du selv angive for hvert rum:
 
-Go to Settings -> Devices & Services -> Add Integration and search for "Advanced Floor Heating".
+| Felt | Hvad | Eksempel |
+|---|---|---|
+| Rumnavn | Navnet på rummet. Bestemmer entity-id'erne (`climate.stue`). | `Stue` |
+| Rumtemperatur-sensor | `sensor` med device class *temperature* | `sensor.stue_temperatur` |
+| Gulvtemperatur-sensor | `sensor` med device class *temperature* | `sensor.stue_gulv_temperatur` |
+| Kontakt til varmen | `switch` der åbner/lukker for varmen (termomotor/relæ) | `switch.stue_varme` |
+| Vindues- og dørkontakter *(valgfri)* | Én eller flere `binary_sensor` – `on` = åben. Rum med både dør og vindue kan have begge. | `binary_sensor.stue_vindue`, `binary_sensor.stue_dor` |
 
-⚙️ Configuration
-The integration is configured via the User Interface (Config Flow). You will need:
+Har et rum flere vinduer og døre, så vælg dem alle – rummet regnes som åbent, så snart **en** af dem er åben (du behøver ikke lave en gruppe først).
 
-Room Sensor (sensor entity).
+> **Tip:** Rumnavnet bliver til entity-id'et. Ændrer du navnet bagefter, ændres entity-id'et ikke automatisk – og dashboardet peger på entity-id'er.
 
-Floor Sensor (sensor entity).
+### Ret indstillinger senere
+**Indstillinger → Enheder & tjenester → Advanced Floor Heating → (rummet) → Konfigurer.**
 
-Heater Switch (switch entity for the thermal actuator).
+| Indstilling | Standard | Forklaring |
+|---|---|---|
+| Vindues- og dørkontakter | tom | Tom = ingen vinduesregel for rummet. Flere kan vælges |
+| Maks. gulvtemperatur | 32 °C | Varmen slukkes, når gulvet når denne temperatur |
+| Ventilmotion (dage) | 7 | Har ventilen ikke været åben i så mange dage, motioneres den: 3 cyklusser med 10 min åben og 10 min lukket (som i IHC-programmet), så termomotoren ikke sætter sig. 0 = slået fra. Virker også, mens rummet er slukket |
+| Føler uden opdatering (timer) | 0 (fra) | Står en føler stille i så mange timer, regnes den som *mangler* (varmen slukkes, og der kommer en alarm). Vær forsigtig: føleren skal opdatere ofte nok, ellers får du falske alarmer |
+| Udekompensation ke | 0 (fra) | Lægger `ke × (rummål − udetemp)` procent oven på PID-udgangen. Bruger Masterens `Ude Kilde` (måling, prognose eller begge). Start lavt (0,3–1,0), og lad I-leddet tage resten |
+| Sol-fradrag ks | 0 (fra) | Trækker `ks × sol` procent fra udgangen, når solen varmer (se [Udekompensation, prognose og sol](#-udekompensation-prognose-og-sol)) |
+| Kp / Ki / Kd | 10 / 2 / 1 | PID-parametre |
+| PID-interval | 30 sek | Hvor ofte regulatoren regner |
+| PWM-cyklus | 30 sek | Længden på tænd/sluk-cyklussen. For termomotorer (telestater) er **ca. 900–1800 sek** typisk fornuftigt – 30 sek er kun en startværdi |
 
-PID Parameters (Defaults)
-Kp: 10.0 (Proportional gain)
+Når du gemmer, genindlæses rummet automatisk.
 
-Ki: 2.0 (Integral gain)
+---
 
-Kd: 1.0 (Derivative gain)
+## 🪟 Vinduesregel
 
-PWM Cycle: 1800s (30 minutes is recommended for floor heating).
+Hvis rummet har en vindues-sensor, og vinduet er åbent:
 
-🛠 Services
-This integration provides specialized services to control the two temperature zones independently (perfect for automations or the Advanced Floor Heating Card):
+- Regulatoren **regulerer ikke efter rumtemperaturen** (den falder jo bare, fordi der er åbent).
+- I stedet **fryses udgangen** (varmeeffekten i %) på den værdi, den havde. PID'ens integral og fejl ændres ikke, mens vinduet er åbent.
+- Når vinduet lukkes igen, fortsætter reguleringen **uden spring** (D-leddet nulstilles).
+- **`Kun Gulv`** regulerer kun på gulvet og påvirkes derfor ikke af vinduet.
+- **Gulv-sikkerheden gælder altid:** når gulvet når maks. gulvtemperatur, slukkes varmen – også mens udgangen er frosset.
+- Mangler eller er vindues-sensoren `unavailable`, tæller vinduet som *lukket* – så en defekt sensor aldrig holder varmen frosset for evigt.
 
-advanced_floor_heating.set_room_temperature
+Status ses i rummets attributter (`window_open`, `output_frozen`) og i status-sensoren (`Vindue åbent - udgang frosset ved 40%`).
 
-advanced_floor_heating.set_floor_temperature
+---
 
-📊 Diagnostics
-All PID data is exposed as attributes on your climate entity, allowing you to monitor the "brain" of your system live:
+## 🏠 Master og husets tilstand
 
-control_output: Current heating demand in %.
+Ligesom i IHC kan hele huset få sin tilstand sat ét sted. **Tilføj integration → Advanced Floor Heating → Tilføj Master** (der kan kun være én). Masteren giver:
 
-pid_p, pid_i, pid_d: Individual contributions from the PID terms.
+| Entity | Hvad |
+|---|---|
+| `select.gulvvarme_master` | Husets tilstand: `Beboet`, `Ubeboet`, `Frostsikker`, `Slukket` |
+| `number.gulvvarme_master_ubeboet_temperatur` | Hvad et rum holder i *Ubeboet* (standard 19 °C) |
+| `number.gulvvarme_master_frost_temperatur` | Hvad et rum holder i *Frostsikker* (standard 16 °C) |
+| `binary_sensor.gulvvarme_master_alarm` | Tændt, hvis et rum har en alarm (attributten `rum` viser hvilke) |
+| `select.gulvvarme_master_ude_kilde` | Hvad udekompensationen bruger: `Måling`, `Prognose` eller `Begge` (se [Udekompensation og sol](#-udekompensation-prognose-og-sol)) |
+| `sensor.gulvvarme_master_ude_temperatur_brugt` | Den ude-temperatur rummene bruger lige nu (attributter: måling, prognose, kilde) |
+| `sensor.gulvvarme_master_sol` | Sol 0–100 % (solhøjde × klar himmel) |
 
-pid_e: Current temperature error.
+Hvad tilstandene gør:
 
-🤝 Contributing & Support
-Found a bug or have a feature request? Please open an Issue or a Pull Request.
+- **Beboet** – hvert rum regulerer efter sine egne setpunkter (som før).
+- **Ubeboet** / **Frostsikker** – rummets setpunkter **sænkes**, så rummet holder Masterens temperatur. Sænkningen er `rum-setpunkt − Masterens temperatur`, og samme antal grader trækkes fra gulv-setpunktet. Rummets *egne* setpunkter ændres ikke og vender tilbage, når huset er Beboet igen. Gulvgrænsen og vinduesreglen gælder som altid.
+- **Slukket** – udgangen er 0 %. Ventilmotion kører stadig, så termomotorerne ikke sætter sig.
 
-Frontend Card: Find the matching Lovelace card here: lovelace-advanced-floor-heating-card
+Hvert rum har også en `select.<rum>_husstilstand` med `Fælles` (følger Masteren, standard) eller en af de fire tilstande. Den bruges til de rum, der ikke skal følge resten – f.eks. et værelse, der er i brug, mens huset ellers er Ubeboet. Valget kan også ændres i kortets indstillinger.
+
+Autotune kan kun køre, mens rummet er `Beboet`; skifter tilstanden undervejs, afbrydes testen. PID-parametre og cyklustider påvirkes ikke af tilstandene.
+
+## 🌦 Udekompensation, prognose og sol
+
+To valgfrie tillæg oven på PID-udgangen. Begge er **slået fra som standard** (`ke` = 0 og `ks` = 0 pr. rum), så regulatoren opfører sig som før, indtil du selv slår dem til.
+
+**Masteren** (Konfigurer) kan have en *udetemperatur-føler* og/eller en *vejr-entitet* (`weather.*`). Vejr-entiteten bruges til prognose (middeltemperatur de næste 1–12 timer, standard 4; hentes hvert 30. minut) og til skydække. Time-prognose bruges, hvis vejr-entiteten har den; ellers 2×dagligt eller dagsprognose. Er prognosen ældre end 3 timer, bruges den ikke.
+
+**`Ude Kilde`** vælger, hvad rummene regner med:
+
+| Kilde | Ude-temperatur | Skydække |
+|---|---|---|
+| `Måling` | udeføleren lige nu | vejr-entitetens nuværende skydække |
+| `Prognose` | prognosens middel over de næste timer | prognosens skydække |
+| `Begge` | middel af måling og prognose | middel af begge |
+
+Mangler den valgte kilde, er tillægget 0 (der er ingen stille omskiftning til en anden kilde, bortset fra `Begge`, som bruger det, der findes).
+
+**Pr. rum** (Konfigurer):
+
+- **`ke` (udekompensation):** lægger `ke × (rummål − ude)` procent til udgangen. Start lavt (0,3–0,5).
+- **`ks` (sol-fradrag):** trækker `ks × sol` procent fra udgangen, når solen varmer (sol = solhøjde/30° begrænset til 0–1, ganget med klar himmel). Brug det til rum mod syd. Solhøjden er den nuværende, ikke den kommende.
+
+Tillæggene er med i anti-windup, og I-leddet tilpasser sig dem. Kortets `pid_ff`-attribut viser tillægget lige nu. Hvor meget det betyder, er en gætteøvelse, indtil du har set det i nogle dage: ændr ét rum ad gangen.
+
+## 🚨 Alarmer og driftstid
+
+Hvert rum har `binary_sensor.<rum>_alarm` (type *problem*) med attributten `alarmer`. En alarm kommer, når:
+
+- en føler har manglet (eller været gammel) i mere end **15 minutter**, eller
+- udgangen har været **90 % eller mere i 90 minutter**, uden at gulvet er steget mindst 0,5 °C, og gulvet stadig er mere end 1 °C under sit mål – en mulig **fastsiddende ventil**.
+
+Kortet viser den første alarm i statuslinjen med rød tekst. `sensor.<rum>_driftstid_i_dag` viser, hvor mange timer ventilen har været åben i dag (nulstilles ved midnat). Brug alarmerne i en almindelig HA-automation til at få en notifikation.
+
+## 📊 Dashboard til alle rum
+
+Dashboardet viser for hvert rum: termostat (aktuel + ønsket rumtemperatur, til/fra, driftstilstand), gulvtemperatur, ønsket gulvtemperatur (slider), varmeeffekt i %, status og vindue. Øverst er et **overblik** med alle rum og knapper til **Alle til / Alle fra**. Dashboardet bruger kun Home Assistants indbyggede kort – ingen ekstra kort fra HACS.
+
+Kræver **Home Assistant 2024.8 eller nyere**.
+
+### 1. Find dine entity-id'er
+Gå til **Indstillinger → Enheder & tjenester → Entiteter** og søg efter rummets navn. For rummet "Stue" bruges:
+
+| Entity | Hvad |
+|---|---|
+| `climate.stue` | Selve regulatoren |
+| `number.stue_rum_setpunkt` | Ønsket rumtemperatur (rum-setpunkt) – kan både ses og ændres |
+| `number.stue_gulv_setpunkt` | Ønsket gulvtemperatur |
+| `sensor.stue_pid_signal` | Varmeeffekt (%) |
+| `sensor.stue_reguleringsstatus` | Status-tekst |
+| `switch.stue_autotune` | Start/stop autotune af PID |
+| `button.stue_anvend_autotune` | Anvend autotune-resultatet |
+
+Står dine entity-id'er anderledes (f.eks. `climate.stue_2`), så brug dem i næste trin.
+
+### 2. Lav YAML'en til dine rum
+Filen [`dashboard/varmestyring.yaml`](dashboard/varmestyring.yaml) er et færdigt eksempel med rummene `stue`, `kontor` og `bad`. Lav din egen med scriptet (kræver Python 3, ingen ekstra pakker):
+
+```powershell
+python tools/generer_dashboard.py "stue=Stue" "sovevaerelse=Soveværelse" "bad=Bad" > dashboard/mit-dashboard.yaml
+```
+
+Hvert argument er `entity-id-navn=Pænt navn` (entity-id-navnet er det, der står efter `climate.`). Vil du ikke bruge Python, kan du åbne eksempelfilen og i hånden rette `stue`, `kontor` og `bad` til dine egne rum – eller kopiere/slette hele `# ---------- Rum ----------`-blokke.
+
+### 3. Importér i Home Assistant
+1. **Indstillinger → Dashboards → Tilføj dashboard → Nyt dashboard fra bunden**, giv det navnet *Varmestyring*.
+2. Åbn dashboardet → blyanten (**Rediger dashboard**) → de tre prikker → **Rå konfigurationseditor**.
+3. Slet alt indhold, indsæt indholdet af din YAML-fil og tryk **Gem**.
+
+*(Bruger du YAML-tilstand for dashboards, kan filen i stedet lægges i `config/` og refereres fra `configuration.yaml` under `lovelace: dashboards:`.)*
+
+### Sådan bruges det
+- **Ønsket rumtemperatur (rum-setpunkt):** slideren `Rum Setpunkt` i rum-kortet viser og ændrer den. Termostat-kortet ændrer den også, undtagen i `Kun Gulv`, hvor termostaten i stedet ændrer gulvets måltemperatur.
+- **Ønsket gulvtemperatur:** slideren `Gulv Setpunkt` i rum-kortet.
+- **Til/fra:** knapperne `heat` / `off` på termostat-kortet. `off` sætter udgangen til 0 % og slukker for kontakten.
+- **Driftstilstand:** drop-down'en på termostat-kortet (de fire driftstilstande).
+- Vises preset-valget ikke på termostat-kortet i din HA-version, kan du ændre det via kortets "mere info"-dialog (klik på rummets navn).
+
+---
+
+## 🛠 Services
+
+Til automatiseringer:
+
+- `advanced_floor_heating.set_room_temperature` – sæt rummets måltemperatur
+- `advanced_floor_heating.set_floor_temperature` – sæt gulvets måltemperatur
+- `advanced_floor_heating.start_autotune` / `stop_autotune` / `apply_autotune` – se [Autotune af PID](#-autotune-af-pid)
+
+```yaml
+action: advanced_floor_heating.set_room_temperature
+target:
+  entity_id: climate.stue
+data:
+  temperature: 21.5
+```
+
+## 🃏 Lovelace-kort (`custom:advanced-floor-heating-card`)
+
+Filen [`lovelace/advanced-floor-heating-card.js`](lovelace/advanced-floor-heating-card.js) er et samlet kort pr. rum:
+
+- **Dial** med rum (øverst) og gulv (nederst). Træk i dial'en for at ændre måltemperatur. Kortet er med vilje enkelt og stille.
+- **Én lille linje** under dial'en fortæller, hvad rummet regulerer efter (`Regulerer efter rum`, `Regulerer kun efter gulv`, `Mål nået`, `Slukket`). Ved åbent vindue står der `Vindue åbent – udgang holdes`, og under autotune `Autotune kører`.
+- **Graf-knap** (kurve-ikonet ved tandhjulet): åbner historik for rum, gulv, rum-/gulv-setpunkt, effekt og ventil. Vælg 6 timer, 24 timer, 3 dage eller 7 dage.
+- **Små ikoner øverst til venstre** (kun når de er relevante): et åbent vindue/en åben dør (hold musen over for at se hvilken) og en pulserende lilla tryllestav, mens autotune kører.
+- **Tandhjul**: åbner indstillingerne i en popup (samme stil som grafen) med til/fra, driftstilstand, ventil, autotune og PID-data (her står også effekt og den fulde status). Kortet selv forbliver småt og stille.
+
+Installation: kopiér filen til `config/www/`, og tilføj den som ressource (**Indstillinger → Dashboards → ⋮ → Ressourcer → Tilføj**): URL `/local/advanced-floor-heating-card.js`, type *JavaScript-modul*. Ændrer du filen, så hæv `?v=…` på URL'en for at tvinge browseren til at hente den igen.
+
+```yaml
+type: custom:advanced-floor-heating-card
+entity: climate.stue
+switch_entity: switch.stue_telestat   # valgfri: viser om ventilen er åben
+name: Stue
+show_status: true    # false = skjul den lille tilstandslinje i bunden
+dim_markers: true    # false = knapperne er altid fulde (ingen dæmpning/slukning)
+```
+
+**Setpunkt-knapperne følger tilstanden** (med `dim_markers: true`, som er standard):
+
+| Knap | Når den er |
+|---|---|
+| Fuld | zonen skal opfyldes: begge i `Rum & Gulv (Begge Opfyldt)`, kun den zone, der er tættest på sit mål (og dermed afgør), i `Rum & Gulv (1 Opfyldt)` |
+| Dæmpet | den anden zone i `Rum & Gulv (1 Opfyldt)`, når kun den ene afgør, eller rummet, mens et vindue/en dør er åben |
+| Næsten slukket og grå | regulatoren er slukket |
+
+Rum står altid øverst og gulv nederst. I tilstanden `Kun Gulv` er rum-justeringen skjult helt (knap og træk), fordi rummet ikke bruges, og i `Kun Rum` er gulv-justeringen skjult på samme måde. Begge valg findes også i kortets editor.
+
+## 🎛 Autotune af PID
+
+Autotune finder selv Kp og Ki til et rum. Den bruger **relæ-metoden** (Åström-Hägglund, samme princip som `smart_thermostat`):
+
+1. I stedet for PID'en lader den udgangen skifte mellem et højt og et lavt niveau omkring det udgangsniveau, regulatoren selv har fundet (I-leddet). Går temperaturen over setpunktet (+ støjbånd), går udgangen ned. Går den under, går udgangen op.
+2. Temperaturen begynder at svinge. Af svingningens **amplitude** og **periode** beregnes processens ultimative forstærkning (`Ku = 4·d / (π·amplitude)`).
+3. Når tre svingninger er ens (±20 %), regnes **Kp** og **Ki** ud med en tuning-regel (`ziegler-nichols` som standard, `tyreus-luyben` er mere forsigtig). **Kd bliver 0** (ren PI), som til gulvvarme er det sikreste.
+
+**Sådan bruges det**
+1. Sæt rummet til det setpunkt, du vil tune på, og lad rummet være ret roligt (vinduer lukkede, ingen sol/ovn der forstyrrer).
+2. Tænd kontakten `switch.<rum>_autotune` i rum-kortet. Status ses i attributten `autotune_status` og i regulatorens status.
+3. **Gulvvarme er træg – en kørsel tager typisk 10-25 timer**, og temperaturen svinger ca. ±0,5-1 °C om setpunktet undervejs. I simulering af en typisk gulvvarme tog det 12-23 timer.
+4. Når den er færdig, står resultatet i attributten `autotune_result` og i status-teksten. Tryk på knappen `button.<rum>_anvend_autotune`, så gemmes Kp/Ki/Kd i rummets indstillinger (rummet genindlæses). Intet ændres, før du trykker.
+
+**Hvad der tunes på:** i tilstande der bruger rummet (alle undtagen `Kun Gulv`) tunes på **rumtemperaturen**, ellers på **gulvtemperaturen**. Vil du bestemme det selv, så kald servicen `advanced_floor_heating.start_autotune` med `target: room` eller `floor`.
+
+**Sikkerhed:** Autotunen afbrydes (og udgangen sættes til 0 %), hvis vinduet åbnes (rum-tuning), gulvet kommer inden for 0,5 °C af maks. gulvtemperatur, en føler mangler, regulatoren slukkes, eller den ikke finder en stabil svingning inden for tidsgrænsen (24 t). Maks. gulvtemperatur gælder hele tiden – sæt den passende lavt, før du starter. Tidsgrænse, udgangstrin, støjbånd og regel kan ændres via servicen:
+
+```yaml
+action: advanced_floor_heating.start_autotune
+target:
+  entity_id: climate.stue
+data:
+  target: room          # room eller floor
+  output_step: 30       # % op/ned om bias-niveauet (mindre = mindre temperaturudsving)
+  noiseband: 0.2        # °C hysterese; skal være større end følerens støj
+  rule: ziegler-nichols # eller tyreus-luyben
+  max_hours: 24
+```
+
+Tun gerne ét rum ad gangen. Genstartes HA midt i en test, afbrydes den, og den starter ikke af sig selv igen.
+
+## 🔧 Pumper (IHC-pumpestyring)
+
+I et IHC-anlæg styres cirkulationspumpen ofte af en funktionsblok, som får et **kald fra hvert rums varmestyring** ("Udgang til pumpestyring"). Blokken starter pumpen efter en forsinkelse (hos os 1 min), stopper den efter en anden (5 min) og motionerer den hver 7. dag i 4 min. Slukker du IHC's varmefunktioner, forsvinder kaldene, og pumperne står stille.
+
+Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_setup.yaml` (se [`ihc/telestat-switches.yaml`](ihc/telestat-switches.yaml) for princippet) og lav en automation pr. pumpe, der tænder pumpestyringen for pumpens rum, mens mindst en af deres telestater er åben, og slukker 5 minutter efter, at alle er lukket. Pumpens egen forsinkelse og motion kan blive i IHC. En ekstra automation kan starte pumpen i 5 minutter, hvis pumpens tilbagemelding ikke har været tændt i 7 dage.
+
+## 🛡 Sikkerhed
+
+- Gulvføleren er **påkrævet**: mangler den (`unavailable`/ugyldig værdi), slukkes varmen. Mangler rumføleren, og tilstanden bruger rummet, slukkes varmen også.
+- Når et rum genindlæses eller fjernes, stoppes de gamle regulerings-løkker og kontakten slukkes (før blev løkkerne liggende og kæmpede mod de nye).
+
+## 📈 Diagnostik
+
+Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
+
+## 🧩 Ændringer i 1.5.0 og 1.4.0
+
+- Ny: **Master** med husets tilstand (Beboet/Ubeboet/Frostsikker/Slukket), temperaturer for Ubeboet og Frostsikker, og en tilstand pr. rum, der kan overstyre
+- Ny: alarmer (føler mangler/gammel, mulig fastsiddende ventil) og `Driftstid i dag`
+- Ny: valgfri udekompensation (`ke`) med valg af kilde (udeføler, vejrprognose eller begge) og valgfrit sol-fradrag (`ks`), og valgfri "føler uden opdatering"-grænse
+- Kortet viser husets tilstand og alarmer i den stille statuslinje, og rummets husstilstand kan vælges i indstillingerne
+- Uændret: PID-formler, PWM-cyklus og alle standardindstillinger
+
+## 🧩 Ændringer i 1.1.0
+
+- Vinduesregel (frys udgang) og maks. gulvtemperatur som indstilling pr. rum
+- Dashboard + dashboard-generator
+- Danske tekster (driftstilstande, status, navne) er nu også i GitHub-koden – samme som den version, der kørte i HA – plus PWM anti-micro-switching
+- Dansk og engelsk oversættelse af opsætningsskærmene
+- Rettet: gulv-skyderen (`number`) ændrede også rummets måltemperatur
+- Rettet: genindlæsning efterlod gamle løkker kørende; kontakten slukkes nu ved fjernelse
+- Rettet: ugyldige sensorværdier kunne vælte regulatoren; manglende føler giver nu sikkert 0 % i stedet for at holde sidste værdi
+- Rettet: valgt driftstilstand (preset) gendannes efter genstart
+- Rettet: `servies.yaml` → `services.yaml` (servicebeskrivelserne blev ikke indlæst)
+- Sensorer og slider opdateres med det samme og samles under én enhed pr. rum
+- Ny: `Rum Setpunkt` (number) – rummets måltemperatur kan ses og ændres som en slider
+- Ny: autotune af PID (relæ-metode) med kontakt, knap og tre services
+- `integration_type: hub`, så rummene vises under Integrationer (ikke Hjælpere)
+
+## 🤝 Bidrag & support
+Fejl eller ønsker? Opret et Issue eller en Pull Request.
+
+Frontend-kort (valgfrit): [lovelace-advanced-floor-heating-card](https://github.com/OlNissen/lovelace-advanced-floor-heating-card)

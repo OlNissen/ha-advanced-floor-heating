@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tilføj til Gulvvarme",
+        "description": "Tilføj et rum, eller husets Master, der sender tilstanden (Beboet/Ubeboet/Frostsikker/Slukket) ud til alle rum. Der kan kun være én Master.",
+        "menu_options": {
+          "room": "Tilføj et rum",
+          "master": "Tilføj Master"
+        }
+      },
+      "room": {
+        "title": "Opsætning af Gulvvarme",
+        "description": "Hvert rum får sin egen regulator. Tilføj integrationen igen for hvert rum.",
+        "data": {
+          "name": "Navn på rummet",
+          "room_sensor": "Rumtemperatur sensor (Luft)",
+          "floor_sensor": "Gulvtemperatur sensor (Overflade)",
+          "heater_switch": "Relæ til gulvvarmekreds",
+          "window_sensor": "Vindues- og dørkontakter (valgfri)"
+        }
+      },
+      "master": {
+        "title": "Master",
+        "description": "Husets tilstand sendes ud til alle rum, ligesom i IHC. Udeføleren bruges kun, hvis et rum har en udekompensation (ke) over 0.",
+        "data": {
+          "name": "Navn",
+          "outdoor_sensor": "Udetemperatur-føler (valgfri)",
+          "weather_entity": "Vejr-entitet til prognose og sol (valgfri)"
+        }
+      }
+    },
+    "abort": {
+      "master_exists": "Der er allerede en Master."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Justering af PID Regulator",
+        "description": "Er vinduet åbent, fryses udgangen, så der ikke reguleres efter rumtemperaturen. Kun \"Kun Gulv\" regulerer videre.",
+        "data": {
+          "window_sensor": "Vindues- og dørkontakter (valgfri, tom = ingen vinduesregel)",
+          "max_floor_temp": "Maks. gulvtemperatur (°C) - varmen slukkes herover",
+          "kp": "P-faktor (Kp) - Forstærkning",
+          "ki": "I-faktor (Ki) - Integrationstid",
+          "kd": "D-faktor (Kd) - Afledet tid",
+          "pid_interval": "PID Beregningsinterval (i sekunder)",
+          "cycle_time": "Telestat Cyklustid (PWM i sekunder)",
+          "valve_exercise_days": "Ventilmotion: åbn ventilen, hvis den ikke har været åben i så mange dage (0 = fra)",
+          "stale_hours": "Føler uden opdatering i så mange timer tæller som mangler (0 = fra)",
+          "outdoor_ke": "Udekompensation ke (% udgang pr. grad forskel mellem mål og ude, 0 = fra)",
+          "solar_gain": "Sol-fradrag ks (% udgang fratrukket ved fuld sol, 0 = fra)"
+        }
+      },
+      "master_options": {
+        "title": "Master",
+        "description": "Udeføler og/eller vejr-entitet til udekompensation (ke) og sol-fradrag (ks). Hvilken kilde rummene bruger, vælges med Masterens 'Ude Kilde'.",
+        "data": {
+          "outdoor_sensor": "Udetemperatur-føler (valgfri)",
+          "weather_entity": "Vejr-entitet til prognose og sol (valgfri)",
+          "forecast_hours": "Prognose: middel over så mange timer frem"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,104 @@
+set_room_temperature:
+  name: Set Room Target Temperature
+  description: Sets the target room temperature for the Advanced Floor Heating entity.
+  target:
+    entity:
+      domain: climate
+  fields:
+    temperature:
+      name: Temperature
+      description: The target room temperature to set.
+      required: true
+      example: 21.5
+      selector:
+        number:
+          min: 15
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: slider
+
+set_floor_temperature:
+  name: Set Floor Target Temperature
+  description: Sets the target floor temperature for the Advanced Floor Heating entity.
+  target:
+    entity:
+      domain: climate
+  fields:
+    temperature:
+      name: Temperature
+      description: The target floor temperature to set.
+      required: true
+      example: 24.0
+      selector:
+        number:
+          min: 15
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: slider
+start_autotune:
+  name: Start autotune
+  description: >-
+    Finder PID-værdier (Kp/Ki) ved at lade udgangen skifte mellem et højt og et lavt niveau
+    og måle temperaturens svingning (relæ-metode). Gulvvarme er træg: en kørsel tager typisk
+    mange timer. Resultatet vises i attributten autotune_result og anvendes først, når du
+    trykker "Anvend Autotune" (eller kalder apply_autotune).
+  target:
+    entity:
+      domain: climate
+  fields:
+    target:
+      name: Regulér på
+      description: Rum eller gulv. Tom = rum, hvis driftstilstanden bruger rummet, ellers gulv.
+      required: false
+      selector:
+        select:
+          options: [room, floor]
+    output_step:
+      name: Udgangstrin (%)
+      description: Hvor langt udgangen svinger op og ned om bias-niveauet. Mindre = mindre udsving i temperatur.
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 50
+          step: 5
+    noiseband:
+      name: Støjbånd (°C)
+      description: Hysterese omkring setpunktet. Skal være større end følerens støj.
+      default: 0.2
+      selector:
+        number:
+          min: 0.05
+          max: 2
+          step: 0.05
+    rule:
+      name: Tuning-regel
+      description: ziegler-nichols (standard) eller tyreus-luyben (mere forsigtig).
+      default: ziegler-nichols
+      selector:
+        select:
+          options: [ziegler-nichols, tyreus-luyben]
+    max_hours:
+      name: Maks. varighed (timer)
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 72
+          step: 1
+
+stop_autotune:
+  name: Stop autotune
+  description: Afbryder en kørende autotune. Regulatoren går tilbage til PID.
+  target:
+    entity:
+      domain: climate
+
+apply_autotune:
+  name: Anvend autotune
+  description: Gemmer de fundne Kp/Ki/Kd i rummets indstillinger (rummet genindlæses).
+  target:
+    entity:
+      domain: climate

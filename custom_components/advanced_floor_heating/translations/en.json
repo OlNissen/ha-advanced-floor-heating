@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add to Floor Heating",
+        "description": "Add a room, or the house Master that sends the mode (Occupied/Unoccupied/Frost/Off) to all rooms. There can be only one Master.",
+        "menu_options": {
+          "room": "Add a room",
+          "master": "Add Master"
+        }
+      },
+      "room": {
+        "title": "Add a room to the floor heating",
+        "description": "Every room gets its own controller. Add the integration again for each room.",
+        "data": {
+          "name": "Room name (e.g. Living room)",
+          "room_sensor": "Room temperature sensor",
+          "floor_sensor": "Floor temperature sensor",
+          "heater_switch": "Heater switch (thermal actuator/relay)",
+          "window_sensor": "Window and door contacts (optional)"
+        }
+      },
+      "master": {
+        "title": "Master",
+        "description": "The house mode is sent to all rooms, like in IHC. The outdoor sensor is only used if a room has outdoor compensation (ke) above 0.",
+        "data": {
+          "name": "Name",
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "weather_entity": "Weather entity for forecast and sun (optional)"
+        }
+      }
+    },
+    "abort": {
+      "master_exists": "A Master already exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Room settings",
+        "description": "When the window is open the output is frozen, so nothing is regulated on the room temperature. Only \"Kun Gulv\" (floor only) keeps regulating.",
+        "data": {
+          "window_sensor": "Window and door contacts (optional, empty = no window rule)",
+          "max_floor_temp": "Max floor temperature (°C) - heating stops above this",
+          "kp": "Kp (proportional)",
+          "ki": "Ki (integral)",
+          "kd": "Kd (differential)",
+          "pid_interval": "PID interval (seconds)",
+          "cycle_time": "PWM cycle (seconds)",
+          "valve_exercise_days": "Valve exercise: open the valve if it has not been open for this many days (0 = off)",
+          "stale_hours": "A sensor without updates for this many hours counts as missing (0 = off)",
+          "outdoor_ke": "Outdoor compensation ke (% output per degree between target and outdoor, 0 = off)",
+          "solar_gain": "Solar gain ks (% output subtracted at full sun, 0 = off)"
+        }
+      },
+      "master_options": {
+        "title": "Master",
+        "description": "Outdoor sensor and/or weather entity for outdoor compensation (ke) and solar gain (ks). Which source the rooms use is chosen with the Master's 'Ude Kilde'.",
+        "data": {
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "weather_entity": "Weather entity for forecast and sun (optional)",
+          "forecast_hours": "Forecast: average over this many hours ahead"
+        }
+      }
+    }
+  }
+}

@@ -2,21 +2,58 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
-from .const import DOMAIN, CONF_ROOM_SENSOR, CONF_FLOOR_SENSOR, CONF_HEATER_SWITCH
+from .const import (
+    DOMAIN, CONF_ROOM_SENSOR, CONF_FLOOR_SENSOR, CONF_HEATER_SWITCH,
+    CONF_WINDOW_SENSOR, CONF_MAX_FLOOR_TEMP, DEFAULT_MAX_FLOOR_TEMP,
+    CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS,
+    CONF_ENTRY_TYPE, TYPE_ROOM, TYPE_MASTER, DEFAULT_MASTER_NAME,
+    CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS,
+    CONF_WEATHER_ENTITY, CONF_FORECAST_HOURS, DEFAULT_FORECAST_HOURS, CONF_SOLAR_GAIN,
+)
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Advanced Floor Heating."""
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        """Handle the initial step where the user adds the integration."""
+        """Vaelg, om der tilfoejes et rum eller husets Master."""
+        return self.async_show_menu(step_id="user", menu_options=["room", "master"])
+
+    async def async_step_master(self, user_input=None):
+        """Masteren: husets tilstand, der sendes ud til alle rum (kun én)."""
+        for entry in self._async_current_entries():
+            if entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER:
+                return self.async_abort(reason="master_exists")
         if user_input is not None:
-            return self.async_create_entry(title=user_input["name"], data=user_input)
+            data = {"name": user_input["name"], CONF_ENTRY_TYPE: TYPE_MASTER}
+            for key in (CONF_OUTDOOR_SENSOR, CONF_WEATHER_ENTITY):
+                if user_input.get(key):
+                    data[key] = user_input[key]
+            return self.async_create_entry(title=user_input["name"], data=data)
+        return self.async_show_form(
+            step_id="master",
+            data_schema=vol.Schema({
+                vol.Required("name", default=DEFAULT_MASTER_NAME): str,
+                vol.Optional(CONF_OUTDOOR_SENSOR): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                ),
+                vol.Optional(CONF_WEATHER_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="weather")
+                ),
+            }),
+        )
+
+    async def async_step_room(self, user_input=None):
+        """Handle the step where a room is added."""
+        if user_input is not None:
+            data = dict(user_input)
+            data[CONF_ENTRY_TYPE] = TYPE_ROOM
+            return self.async_create_entry(title=user_input["name"], data=data)
 
         return self.async_show_form(
-            step_id="user",
+            step_id="room",
             data_schema=vol.Schema({
-                vol.Required("name", default="Living Room"): str,
+                vol.Required("name", default="Mit Rum"): str,
                 vol.Required(CONF_ROOM_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
@@ -25,6 +62,9 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Required(CONF_HEATER_SWITCH): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="switch")
+                ),
+                vol.Optional(CONF_WINDOW_SENSOR): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
             }),
         )
@@ -39,14 +79,67 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle the options flow to tune PID parameters."""
     async def async_step_init(self, user_input=None):
         """Manage the options settings."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
         options = self.config_entry.options
+        if self.config_entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER:
+            return await self.async_step_master_options(user_input)
+        # Window sensor: options win over what was typed in when the room was created
+        window_sensor = options.get(
+            CONF_WINDOW_SENSOR, self.config_entry.data.get(CONF_WINDOW_SENSOR)
+        )
+        # Gammel opsætning: én kontakt som tekst -> liste
+        if isinstance(window_sensor, str):
+            window_sensor = [window_sensor]
+        window_sensor = window_sensor or []
+
+        if user_input is not None:
+            data = dict(user_input)
+            # Store the key even when cleared, so options override the old value
+            data.setdefault(CONF_WINDOW_SENSOR, [])
+            return self.async_create_entry(title="", data=data)
         
+        window_key = (
+            vol.Optional(CONF_WINDOW_SENSOR, description={"suggested_value": window_sensor})
+        )
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
+                window_key: selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
+                ),
+                vol.Required(
+                    CONF_MAX_FLOOR_TEMP,
+                    default=float(options.get(
+                        CONF_MAX_FLOOR_TEMP,
+                        self.config_entry.data.get(CONF_MAX_FLOOR_TEMP, DEFAULT_MAX_FLOOR_TEMP),
+                    )),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=20, max=45, step=0.5)
+                ),
+                vol.Required(
+                    CONF_VALVE_EXERCISE_DAYS,
+                    default=float(options.get(CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=90, step=1)
+                ),
+                vol.Required(
+                    CONF_STALE_HOURS,
+                    default=float(options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=72, step=0.5)
+                ),
+                vol.Required(
+                    CONF_OUTDOOR_KE,
+                    default=float(options.get(CONF_OUTDOOR_KE, 0.0)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=10, step=0.05)
+                ),
+                vol.Required(
+                    CONF_SOLAR_GAIN,
+                    default=float(options.get(CONF_SOLAR_GAIN, 0.0)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=100, step=1)
+                ),
                 vol.Required("kp", default=float(options.get("kp", 10.0))): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=1000, step=0.1)
                 ),
@@ -61,6 +154,38 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
                 vol.Required("cycle_time", default=int(options.get("cycle_time", 30))): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=1, max=3600, step=1)
+                ),
+            }),
+        )
+
+    async def async_step_master_options(self, user_input=None):
+        """Masterens indstillinger: udeføler, vejr-entitet (prognose og sol) og prognosetimer."""
+        options = self.config_entry.options
+        data_ = self.config_entry.data
+
+        def current(key):
+            return options.get(key, data_.get(key))
+
+        if user_input is not None:
+            data = dict(user_input)
+            # Gem nøglerne også når de er ryddet, så options overstyrer de gamle værdier
+            data.setdefault(CONF_OUTDOOR_SENSOR, None)
+            data.setdefault(CONF_WEATHER_ENTITY, None)
+            return self.async_create_entry(title="", data=data)
+        return self.async_show_form(
+            step_id="master_options",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_OUTDOOR_SENSOR, description={"suggested_value": current(CONF_OUTDOOR_SENSOR)}):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                    ),
+                vol.Optional(CONF_WEATHER_ENTITY, description={"suggested_value": current(CONF_WEATHER_ENTITY)}):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="weather")),
+                vol.Required(
+                    CONF_FORECAST_HOURS,
+                    default=float(current(CONF_FORECAST_HOURS) or DEFAULT_FORECAST_HOURS),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=1, max=12, step=1)
                 ),
             }),
         )
