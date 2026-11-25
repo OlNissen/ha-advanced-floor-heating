@@ -30,3 +30,34 @@ PRESET_BOTH_BOTH_MET = "Rum & Gulv (Begge Opfyldt)"
 # Attributes
 ATTR_PID_SIGNAL = "pid_signal"
 ATTR_CURRENT_PRIORITY = "current_priority_sensor"
+
+# ---------------------------------------------------------------- Master (som i IHC)
+# Et config-entry kan vaere et rum (standard) eller husets Master. Masteren sender
+# husets tilstand ud til alle rum; hvert rum kan overstyre den med sin egen "Tilstand".
+CONF_ENTRY_TYPE = "entry_type"
+TYPE_ROOM = "room"
+TYPE_MASTER = "master"
+MASTER_KEY = "master"  # noegle i hass.data[DOMAIN]
+DEFAULT_MASTER_NAME = "Gulvvarme Master"
+
+MODE_OCCUPIED = "Beboet"       # rummet regulerer efter sine egne setpunkter
+MODE_UNOCCUPIED = "Ubeboet"    # rum- og gulv-setpunkt saenkes, saa rummet holder "Ubeboet temperatur"
+MODE_FROST = "Frostsikker"     # som Ubeboet, men holder kun "Frost temperatur"
+MODE_OFF = "Slukket"           # ingen varme (ventilmotion koerer stadig)
+HOUSE_MODES = [MODE_OCCUPIED, MODE_UNOCCUPIED, MODE_FROST, MODE_OFF]
+MODE_FOLLOW = "Fælles"         # kun for rum: foelg Masteren
+ROOM_MODE_OPTIONS = [MODE_FOLLOW] + HOUSE_MODES
+
+DEFAULT_UNOCCUPIED_TEMP = 19.0
+DEFAULT_FROST_TEMP = 16.0
+
+# Udekompensation (valgfri; ke = 0 -> slaaet fra) og gamle foelere
+CONF_OUTDOOR_SENSOR = "outdoor_sensor"   # sat paa Masteren
+CONF_OUTDOOR_KE = "outdoor_ke"           # sat paa hvert rum, % udgang pr. grad (maal - ude)
+CONF_STALE_HOURS = "stale_hours"         # foeler uden opdatering i saa mange timer -> mangler (0 = fra)
+DEFAULT_STALE_HOURS = 0
+
+# Alarmer
+STUCK_VALVE_MINUTES = 90      # fuld udgang saa laenge uden at gulvet stiger ...
+STUCK_VALVE_MIN_RISE = 0.5    # ... mindst saa mange grader
+SENSOR_ALARM_MINUTES = 15     # foeler maa mangle saa laenge, foer det er en alarm

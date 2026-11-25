@@ -12,6 +12,8 @@ PID-baseret varmestyring til **gulvvarme** (træge systemer, f.eks. IHC med term
   - `Rum & Gulv (Begge Opfyldt)` – stopper først, når begge mål er nået
 - **PID med anti-windup** og **PWM-udgang** (kontakten tændes/slukkes i cyklusser).
 - **Vinduesregel (valgfri):** er vinduet åbent, **fryses udgangen**, så der ikke reguleres efter den (kolde) rumtemperatur. Se [Vinduesregel](#-vinduesregel).
+- **Master (som i IHC):** én tilstand for hele huset – `Beboet`, `Ubeboet`, `Frostsikker` eller `Slukket` – som sendes ud til alle rum. Hvert rum kan overstyre den. Se [Master](#-master-og-husets-tilstand).
+- **Alarmer** pr. rum og samlet for huset: føler mangler/er gammel, og ventil der ikke varmer. Se [Alarmer](#-alarmer-og-driftstid).
 - **Maks. gulvtemperatur** pr. rum – varmen slukkes automatisk over grænsen.
 - **Gendanner tilstand** efter genstart af Home Assistant (måltemperaturer, preset, PID-integral og udgang).
 - **Dashboard til alle rum** i én visning ([se nedenfor](#-dashboard-til-alle-rum)).
@@ -42,6 +44,8 @@ Du behøver ikke gøre noget ved dine eksisterende rum – entity-id'er, måltem
 **Indstillinger → Enheder & tjenester → Tilføj integration → "Advanced Floor Heating".**
 Gentag for hvert rum.
 
+> Der er nu et valg først: **Tilføj et rum** eller **Tilføj Master** (se [Master](#-master-og-husets-tilstand)).
+
 Det skal du selv angive for hvert rum:
 
 | Felt | Hvad | Eksempel |
@@ -64,6 +68,8 @@ Har et rum flere vinduer og døre, så vælg dem alle – rummet regnes som åbe
 | Vindues- og dørkontakter | tom | Tom = ingen vinduesregel for rummet. Flere kan vælges |
 | Maks. gulvtemperatur | 32 °C | Varmen slukkes, når gulvet når denne temperatur |
 | Ventilmotion (dage) | 7 | Har ventilen ikke været åben i så mange dage, motioneres den: 3 cyklusser med 10 min åben og 10 min lukket (som i IHC-programmet), så termomotoren ikke sætter sig. 0 = slået fra. Virker også, mens rummet er slukket |
+| Føler uden opdatering (timer) | 0 (fra) | Står en føler stille i så mange timer, regnes den som *mangler* (varmen slukkes, og der kommer en alarm). Vær forsigtig: føleren skal opdatere ofte nok, ellers får du falske alarmer |
+| Udekompensation ke | 0 (fra) | Lægger `ke × (rummål − udetemp)` procent oven på PID-udgangen. Kræver, at Masteren har en udetemperatur-føler. Start lavt (0,3–1,0), og lad I-leddet tage resten |
 | Kp / Ki / Kd | 10 / 2 / 1 | PID-parametre |
 | PID-interval | 30 sek | Hvor ofte regulatoren regner |
 | PWM-cyklus | 30 sek | Længden på tænd/sluk-cyklussen. For termomotorer (telestater) er **ca. 900–1800 sek** typisk fornuftigt – 30 sek er kun en startværdi |
@@ -86,6 +92,36 @@ Hvis rummet har en vindues-sensor, og vinduet er åbent:
 Status ses i rummets attributter (`window_open`, `output_frozen`) og i status-sensoren (`Vindue åbent - udgang frosset ved 40%`).
 
 ---
+
+## 🏠 Master og husets tilstand
+
+Ligesom i IHC kan hele huset få sin tilstand sat ét sted. **Tilføj integration → Advanced Floor Heating → Tilføj Master** (der kan kun være én). Masteren giver:
+
+| Entity | Hvad |
+|---|---|
+| `select.gulvvarme_master` | Husets tilstand: `Beboet`, `Ubeboet`, `Frostsikker`, `Slukket` |
+| `number.gulvvarme_master_ubeboet_temperatur` | Hvad et rum holder i *Ubeboet* (standard 19 °C) |
+| `number.gulvvarme_master_frost_temperatur` | Hvad et rum holder i *Frostsikker* (standard 16 °C) |
+| `binary_sensor.gulvvarme_master_alarm` | Tændt, hvis et rum har en alarm (attributten `rum` viser hvilke) |
+
+Hvad tilstandene gør:
+
+- **Beboet** – hvert rum regulerer efter sine egne setpunkter (som før).
+- **Ubeboet** / **Frostsikker** – rummets setpunkter **sænkes**, så rummet holder Masterens temperatur. Sænkningen er `rum-setpunkt − Masterens temperatur`, og samme antal grader trækkes fra gulv-setpunktet. Rummets *egne* setpunkter ændres ikke og vender tilbage, når huset er Beboet igen. Gulvgrænsen og vinduesreglen gælder som altid.
+- **Slukket** – udgangen er 0 %. Ventilmotion kører stadig, så termomotorerne ikke sætter sig.
+
+Hvert rum har også en `select.<rum>_husstilstand` med `Fælles` (følger Masteren, standard) eller en af de fire tilstande. Den bruges til de rum, der ikke skal følge resten – f.eks. et værelse, der er i brug, mens huset ellers er Ubeboet. Valget kan også ændres i kortets indstillinger.
+
+Autotune kan kun køre, mens rummet er `Beboet`; skifter tilstanden undervejs, afbrydes testen. PID-parametre og cyklustider påvirkes ikke af tilstandene.
+
+## 🚨 Alarmer og driftstid
+
+Hvert rum har `binary_sensor.<rum>_alarm` (type *problem*) med attributten `alarmer`. En alarm kommer, når:
+
+- en føler har manglet (eller været gammel) i mere end **15 minutter**, eller
+- udgangen har været **90 % eller mere i 90 minutter**, uden at gulvet er steget mindst 0,5 °C, og gulvet stadig er mere end 1 °C under sit mål – en mulig **fastsiddende ventil**.
+
+Kortet viser den første alarm i statuslinjen med rød tekst. `sensor.<rum>_driftstid_i_dag` viser, hvor mange timer ventilen har været åben i dag (nulstilles ved midnat). Brug alarmerne i en almindelig HA-automation til at få en notifikation.
 
 ## 📊 Dashboard til alle rum
 
@@ -226,6 +262,14 @@ Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_set
 ## 📈 Diagnostik
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
+
+## 🧩 Ændringer i 1.4.0
+
+- Ny: **Master** med husets tilstand (Beboet/Ubeboet/Frostsikker/Slukket), temperaturer for Ubeboet og Frostsikker, og en tilstand pr. rum, der kan overstyre
+- Ny: alarmer (føler mangler/gammel, mulig fastsiddende ventil) og `Driftstid i dag`
+- Ny: valgfri udekompensation (`ke`) og valgfri "føler uden opdatering"-grænse
+- Kortet viser husets tilstand og alarmer i den stille statuslinje, og rummets husstilstand kan vælges i indstillingerne
+- Uændret: PID-formler, PWM-cyklus og alle standardindstillinger
 
 ## 🧩 Ændringer i 1.1.0
 

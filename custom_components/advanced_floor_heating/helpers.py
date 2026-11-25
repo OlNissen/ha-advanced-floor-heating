@@ -6,6 +6,11 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .const import DOMAIN
 
 
+# Signaler: Masteren skifter tilstand / et rums alarmer aendrer sig
+MASTER_SIGNAL = f"{DOMAIN}_master_update"
+ALARM_SIGNAL = f"{DOMAIN}_alarm_update"
+
+
 def update_signal(entry_id: str) -> str:
     """Dispatcher signal sent by the climate entity whenever its state changed."""
     return f"{DOMAIN}_{entry_id}_update"

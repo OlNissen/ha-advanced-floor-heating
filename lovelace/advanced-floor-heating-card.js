@@ -122,6 +122,12 @@ class AdvancedFloorHeatingCard extends HTMLElement {
               </select>
             </div>
 
+            <div id="house-row" style="display: none; flex-direction: column; margin-bottom: 16px; width: 100%;">
+              <label style="font-size: 12px; color: var(--secondary-text-color); margin-bottom: 4px;">Husets tilstand</label>
+              <select id="house-select" style="padding: 8px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); cursor: pointer; width: 100%;">
+              </select>
+            </div>
+
             <div id="autotune-row" style="display: none; width: 100%; margin-bottom: 16px;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                 <span style="font-size: 12px; color: var(--secondary-text-color);">Autotune PID</span>
@@ -177,6 +183,11 @@ class AdvancedFloorHeatingCard extends HTMLElement {
         if (btn) this._hass.callService('button', 'press', { entity_id: btn });
       });
 
+      this.querySelector('#house-select').addEventListener('change', (e) => {
+        const sel = this._siblingId(/^select\..*_husstilstand$/);
+        if (sel) hass.callService('select', 'select_option', { entity_id: sel, option: e.target.value });
+      });
+
       this.querySelector('#preset-select').addEventListener('change', (e) => {
         hass.callService('climate', 'set_preset_mode', { entity_id: entityId, preset_mode: e.target.value });
       });
@@ -224,6 +235,24 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     }
     if (attr.preset_mode && selectEl.value !== attr.preset_mode) {
       selectEl.value = attr.preset_mode;
+    }
+
+    // --- Husets tilstand (rummets egen overstyring af Masteren) ---
+    const houseSel = this._siblingId(/^select\..*_husstilstand$/);
+    const houseRow = this.querySelector('#house-row');
+    houseRow.style.display = houseSel ? 'flex' : 'none';
+    if (houseSel) {
+      const hs = hass.states[houseSel];
+      const houseEl = this.querySelector('#house-select');
+      if (houseEl.children.length === 0 && hs.attributes.options) {
+        hs.attributes.options.forEach(opt => {
+          const o = document.createElement('option');
+          o.value = opt;
+          o.text = opt === 'Fælles' ? 'Fælles (følger Master)' : opt;
+          houseEl.appendChild(o);
+        });
+      }
+      if (houseEl.value !== hs.state) houseEl.value = hs.state;
     }
 
     // --- Autotune (kun i Pro-skuffen, og kun for rum med autotune-entiteter) ---
@@ -308,7 +337,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       mode = 'Autotune kører';
     } else if (/^Sikkerhedsstop/.test(reg_status)) {
       mode = 'Sikkerhedsstop – gulv for varmt';
-    } else if (/mangler/i.test(reg_status)) {
+    } else if (/mangler|gammel/i.test(reg_status)) {
       mode = reg_status.replace(/\s*\(.*\)\s*$/, '');
     } else if (/^Kun Rum$/.test(reg_status) || /^Kun Gulv$/.test(reg_status)) {
       mode = `Regulerer kun efter ${reg_status.slice(4).toLowerCase()}`;
@@ -317,10 +346,22 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     } else if (/^Mål nået/.test(reg_status)) {
       mode = 'Mål nået';
     }
-    if (this.config.show_status === false) mode = '';
+    // Husets tilstand fra Masteren (eller rummets egen): kun synlig, når den ikke er "Beboet"
+    const house = attr.house_mode;
+    if (state.state !== 'off' && house === 'Slukket') {
+      mode = attr.house_mode_source === 'rum' ? 'Slukket (rummets tilstand)' : 'Slukket af Master';
+    } else if (state.state !== 'off' && (house === 'Ubeboet' || house === 'Frostsikker')) {
+      const eff = num(attr.effective_room_target).toFixed(0);
+      mode = `${house} ${eff}°` + (mode ? ` · ${mode.charAt(0).toLowerCase()}${mode.slice(1)}` : '');
+    }
+    // Alarm: stille advarsel i samme linje
+    const alarmText = (attr.alarm && Array.isArray(attr.alarms) && attr.alarms.length) ? `⚠ ${attr.alarms[0]}` : '';
+    if (alarmText) mode = alarmText;
+    if (this.config.show_status === false && !alarmText) mode = '';
     modeEl.innerText = mode;
     modeEl.style.display = mode ? 'block' : 'none';
-    modeEl.style.color = (attr.output_frozen || attr.autotune_active) ? 'var(--primary-color)' : 'var(--secondary-text-color)';
+    modeEl.style.color = alarmText ? 'var(--error-color, #db4437)'
+      : (attr.output_frozen || attr.autotune_active) ? 'var(--primary-color)' : 'var(--secondary-text-color)';
 
     const minT = 15;
     const maxT = 30;

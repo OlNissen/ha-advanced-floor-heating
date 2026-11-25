@@ -8,7 +8,8 @@ from homeassistant.components.climate import (
 from homeassistant.const import UnitOfTemperature, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_send, async_dispatcher_connect
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     DOMAIN, CONF_ROOM_SENSOR, CONF_FLOOR_SENSOR, CONF_HEATER_SWITCH,
@@ -16,8 +17,13 @@ from .const import (
     CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS,
     VALVE_EXERCISE_CYCLES, VALVE_EXERCISE_PHASE_SECONDS,
     PRESET_ROOM_ONLY, PRESET_FLOOR_ONLY, PRESET_BOTH_1_MET, PRESET_BOTH_BOTH_MET,
+    MODE_OCCUPIED, MODE_UNOCCUPIED, MODE_FROST, MODE_OFF, MODE_FOLLOW, ROOM_MODE_OPTIONS,
+    DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP,
+    CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS,
+    STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES,
 )
-from .helpers import device_info, update_signal
+from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
+from .master import get_master
 from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 
 _LOGGER = logging.getLogger(__name__)
@@ -105,6 +111,23 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._last_valve_on = time.time()  # sidste gang ventilen var åben (epoch); genindlæses ved genstart
         self._exercise_start = None        # monotonic-tid hvor en igangværende motion startede
 
+        # Husets tilstand: rummet foelger Masteren, medmindre det har sin egen tilstand
+        self._mode_override = MODE_FOLLOW
+        self._reset_d = False  # naeste PID-skridt glemmer gammel fejl (ingen D-spike efter tilstandsskift)
+
+        # Udekompensation (ke = 0 -> slaaet fra) og gamle foelere
+        self._ke = float(_option(entry, CONF_OUTDOOR_KE, 0.0) or 0.0)
+        self._stale_hours = float(_option(entry, CONF_STALE_HOURS, DEFAULT_STALE_HOURS) or 0.0)
+        self._ff_out = 0.0
+
+        # Alarmer og driftstid
+        self._alarms = []
+        self._sensor_bad_since = {}   # entity_id -> monotonic-tid hvor den begyndte at mangle
+        self._full_since = None       # monotonic: hvornaar udgangen blev ved >= 90 %
+        self._full_floor0 = None      # gulvtemperatur dengang
+        self._runtime_s = 0.0         # sekunder med aaben ventil i dag
+        self._runtime_date = None     # dato (ISO) for _runtime_s
+
         # Internal time constants
         self._i_time = 9000.0
         self._d_time = 2580.0
@@ -157,15 +180,93 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
     # ------------------------------------------------------------------ helpers
 
-    def _read_temp(self, entity_id):
-        """Return the sensor value as float, or None if missing / not a number."""
+    def _sensor_problem(self, entity_id):
+        """None hvis foeleren er i orden, ellers 'mangler' eller 'gammel'."""
         state = self.hass.states.get(entity_id)
         if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return None
+            return "mangler"
         try:
-            return float(state.state)
+            float(state.state)
         except (TypeError, ValueError):
+            return "mangler"
+        if self._stale_hours > 0:
+            seen = getattr(state, "last_reported", None) or state.last_updated
+            if (dt_util.utcnow() - seen).total_seconds() > self._stale_hours * 3600:
+                return "gammel"
+        return None
+
+    def _read_temp(self, entity_id):
+        """Return the sensor value as float, or None if missing / stale / not a number."""
+        if self._sensor_problem(entity_id) is not None:
             return None
+        return float(self.hass.states.get(entity_id).state)
+
+    # ---------------------------------------------------------- husets tilstand
+
+    @property
+    def mode_override(self):
+        return self._mode_override
+
+    @property
+    def house_mode(self):
+        """Den tilstand rummet faktisk holder: egen tilstand, ellers Masterens."""
+        if self._mode_override != MODE_FOLLOW:
+            return self._mode_override
+        hub = get_master(self.hass)
+        return hub.mode if hub else MODE_OCCUPIED
+
+    @property
+    def house_mode_source(self):
+        if self._mode_override != MODE_FOLLOW:
+            return "rum"
+        return "master" if get_master(self.hass) else "ingen"
+
+    def _mode_temp(self, mode):
+        hub = get_master(self.hass)
+        if mode == MODE_FROST:
+            return hub.frost_temp if hub else DEFAULT_FROST_TEMP
+        return hub.unoccupied_temp if hub else DEFAULT_UNOCCUPIED_TEMP
+
+    @property
+    def _setback(self):
+        """Hvor mange grader setpunkterne saenkes af husets tilstand (0 i Beboet)."""
+        mode = self.house_mode
+        if mode in (MODE_UNOCCUPIED, MODE_FROST):
+            return max(0.0, self._target_temp_room - self._mode_temp(mode))
+        return 0.0
+
+    @property
+    def effective_room_target(self):
+        return self._target_temp_room - self._setback
+
+    @property
+    def effective_floor_target(self):
+        return max(10.0, self._target_temp_floor - self._setback)
+
+    @property
+    def alarms(self):
+        return list(self._alarms)
+
+    @property
+    def runtime_today_hours(self):
+        self._roll_runtime_day()
+        return round(self._runtime_s / 3600.0, 2)
+
+    def _roll_runtime_day(self):
+        today = dt_util.now().date().isoformat()
+        if self._runtime_date != today:
+            self._runtime_date = today
+            self._runtime_s = 0.0
+
+    async def async_set_mode_override(self, mode):
+        if mode in ROOM_MODE_OPTIONS and mode != self._mode_override:
+            self._mode_override = mode
+            self._reset_d = True
+            await self._async_calculate_heating_demand()
+
+    async def _async_master_changed(self):
+        self._reset_d = True
+        await self._async_calculate_heating_demand()
 
     @property
     def open_sensors(self):
@@ -233,6 +334,16 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                 except (TypeError, ValueError):
                     pass
 
+            override = last_state.attributes.get("mode_override")
+            if override in ROOM_MODE_OPTIONS:
+                self._mode_override = override
+            if last_state.attributes.get("runtime_date"):
+                self._runtime_date = str(last_state.attributes["runtime_date"])
+                try:
+                    self._runtime_s = float(last_state.attributes.get("runtime_seconds", 0))
+                except (TypeError, ValueError):
+                    self._runtime_s = 0.0
+
             if "control_output" in last_state.attributes:
                 self._pid_signal = max(0.0, min(100.0, float(last_state.attributes["control_output"])))
 
@@ -243,6 +354,14 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                     self.hass, self._window_sensors, self._async_window_changed
                 )
             )
+
+        # Besked fra Masteren: skift af husets tilstand
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, MASTER_SIGNAL,
+                lambda: self.hass.async_create_task(self._async_master_changed()),
+            )
+        )
 
         # Start the "Brain" and the "Muscle" tasks
         self._tasks = [
@@ -305,6 +424,18 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "pid_e": round(self._current_error, 2),
             "pid_interval": self._pid_interval,
             "pwm_cycle_time": self._cycle_time,
+            "house_mode": self.house_mode,
+            "house_mode_source": self.house_mode_source,
+            "mode_override": self._mode_override,
+            "effective_room_target": round(self.effective_room_target, 2),
+            "effective_floor_target": round(self.effective_floor_target, 2),
+            "outdoor_ke": self._ke,
+            "pid_ff": round(self._ff_out, 2),
+            "stale_hours": self._stale_hours,
+            "alarms": self._alarms,
+            "alarm": bool(self._alarms),
+            "runtime_seconds": round(self._runtime_s),
+            "runtime_date": self._runtime_date,
             "valve_exercise_days": self._exercise_days,
             "valve_exercising": self._exercise_start is not None,
             "last_valve_on": self._iso(self._last_valve_on),
@@ -375,27 +506,38 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._publish()
             return
 
-        if self._attr_hvac_mode == HVACMode.OFF:
+        mode = self.house_mode
+        if self._attr_hvac_mode == HVACMode.OFF or mode == MODE_OFF:
             if self._tuner is not None:
                 self._autotune_abort("regulatoren blev slukket")
             self._pid_signal = 0.0
             self._frozen = False
-            self._regulation_status = "Slukket (HVAC OFF)"
+            if self._attr_hvac_mode == HVACMode.OFF:
+                self._regulation_status = "Slukket (HVAC OFF)"
+            else:
+                self._regulation_status = f"Slukket ({'Master' if self.house_mode_source == 'master' else 'Rum'})"
+            self._update_alarms()
             self._publish()
             return
 
         curr_floor = self._read_temp(self._floor_sensor)
         if curr_floor is None:
             # Without the floor sensor we cannot guarantee the floor limit -> heating off.
+            problem = self._sensor_problem(self._floor_sensor) or "mangler"
             if self._tuner is not None:
-                self._autotune_abort("gulvføler mangler")
+                self._autotune_abort(f"gulvføler {problem}")
             self._pid_signal = 0.0
-            self._regulation_status = "Gulvføler mangler (Slukket)"
+            self._regulation_status = f"Gulvføler {problem} (Slukket)"
+            self._update_alarms()
             self._publish()
             return
 
         if self._tuner is not None:
-            self._autotune_step(curr_floor)
+            if mode != MODE_OCCUPIED:
+                self._autotune_abort(f"husets tilstand er {mode}")
+            else:
+                self._autotune_step(curr_floor)
+            self._update_alarms()
             self._publish()
             return
 
@@ -413,8 +555,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         else:
             curr_room = self._read_temp(self._room_sensor) if uses_room else None
             if uses_room and curr_room is None:
+                problem = self._sensor_problem(self._room_sensor) or "mangler"
                 self._pid_signal = 0.0
-                self._regulation_status = "Rumføler mangler (Slukket)"
+                self._regulation_status = f"Rumføler {problem} (Slukket)"
+                self._update_alarms()
                 self._publish()
                 return
 
@@ -427,7 +571,59 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         elif self._pid_signal == 0 and not frozen:
             self._regulation_status = "Mål nået (Slukket)"
 
+        self._update_alarms()
         self._publish()
+
+    # ----------------------------------------------------------------- alarmer
+
+    def _update_alarms(self):
+        """Opdater rummets alarmer: foeler mangler/gammel i en periode, ventil der ikke varmer."""
+        now = time.monotonic()
+        alarms = []
+        for label, entity in (("Rumføler", self._room_sensor), ("Gulvføler", self._floor_sensor)):
+            problem = self._sensor_problem(entity)
+            if problem is None:
+                self._sensor_bad_since.pop(entity, None)
+            else:
+                since = self._sensor_bad_since.setdefault(entity, now)
+                if now - since >= SENSOR_ALARM_MINUTES * 60:
+                    alarms.append(f"{label} {problem}")
+
+        # Ventil der sidder fast: fuld udgang i lang tid uden at gulvet stiger
+        floor = self._read_temp(self._floor_sensor)
+        heating = (
+            self._pid_signal >= 90.0
+            and self._exercise_start is None
+            and self._tuner is None
+            and floor is not None
+            and floor < self.effective_floor_target - 1.0
+            and floor < self._max_floor_temp - 1.0
+        )
+        if heating:
+            if self._full_since is None or floor - self._full_floor0 >= STUCK_VALVE_MIN_RISE:
+                self._full_since = now
+                self._full_floor0 = floor
+            elif now - self._full_since >= STUCK_VALVE_MINUTES * 60:
+                alarms.append("Ventil sidder muligvis fast (fuld udgang, gulvet stiger ikke)")
+        else:
+            self._full_since = None
+            self._full_floor0 = None
+
+        if alarms != self._alarms:
+            self._alarms = alarms
+            if alarms:
+                _LOGGER.warning("%s: alarm: %s", self.name, "; ".join(alarms))
+            async_dispatcher_send(self.hass, ALARM_SIGNAL)
+
+    def _outdoor_temp(self):
+        hub = get_master(self.hass)
+        if hub is None or not hub.outdoor_sensor:
+            return None
+        return self._read_temp(hub.outdoor_sensor)
+
+    def _add_runtime(self, seconds):
+        self._roll_runtime_day()
+        self._runtime_s += seconds
 
     # ---------------------------------------------------------------- autotune
 
@@ -484,6 +680,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._autotune_msg = "Autotune kan ikke startes: regulatoren er slukket"
             self._publish()
             return
+        if self.house_mode != MODE_OCCUPIED:
+            self._autotune_msg = f"Autotune kan ikke startes: husets tilstand er {self.house_mode}"
+            self._publish()
+            return
         if target is None:
             target = "floor" if self._attr_preset_mode == PRESET_FLOOR_ONLY else "room"
         pv = self._read_temp(self._room_sensor if target == "room" else self._floor_sensor)
@@ -527,8 +727,9 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
     def _run_pid(self, curr_room, curr_floor):
         """One PID step. Updates _pid_signal and the PID terms."""
-        err_f = self._target_temp_floor - curr_floor
-        err_r = (self._target_temp_room - curr_room) if curr_room is not None else None
+        eff_room = self.effective_room_target
+        err_f = self.effective_floor_target - curr_floor
+        err_r = (eff_room - curr_room) if curr_room is not None else None
 
         # Mode Logic
         if self._attr_preset_mode == PRESET_BOTH_BOTH_MET:
@@ -554,9 +755,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         # Coming back from a frozen output: forget the old error so the
         # D-term does not give a spike on the first step.
-        if self._frozen:
+        if self._frozen or self._reset_d:
             self._last_error = error
             self._frozen = False
+            self._reset_d = False
 
         self._current_error = error
         dt = self._pid_interval
@@ -569,7 +771,13 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         i_step = error * (dt / self._i_time)
         test_i_sum = self._integral_sum + i_step
         test_i_out = self._ki * test_i_sum
-        test_signal = self._p_out + test_i_out + self._d_out
+        # Udekompensation (valgfri): fast tillaeg efter hvor koldt det er ude
+        self._ff_out = 0.0
+        if self._ke > 0:
+            outdoor = self._outdoor_temp()
+            if outdoor is not None:
+                self._ff_out = max(0.0, self._ke * (eff_room - outdoor))
+        test_signal = self._p_out + test_i_out + self._d_out + self._ff_out
 
         if test_signal >= 100.0 and error > 0:
             pass  # Clamp positive
@@ -584,7 +792,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._i_out = self._ki * self._integral_sum
 
         # Final PID Signal
-        y_signal = self._p_out + self._i_out + self._d_out
+        y_signal = self._p_out + self._i_out + self._d_out + self._ff_out
         self._pid_signal = max(0.0, min(100.0, y_signal))
         self._last_error = error
 
@@ -609,6 +817,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                     await self.hass.services.async_call("switch", "turn_on", {"entity_id": self._heater_switch})
                     self._last_valve_on = time.time()
                     await asyncio.sleep(on_time)
+                    self._add_runtime(on_time)
 
                 if off_time > 0:
                     await self.hass.services.async_call("switch", "turn_off", {"entity_id": self._heater_switch})
