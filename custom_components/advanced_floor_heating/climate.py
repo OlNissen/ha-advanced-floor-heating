@@ -21,7 +21,7 @@ from .const import (
     DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP,
     CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS, CONF_SOLAR_GAIN,
     CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
-    STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES,
+    STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES, SUPPLY_MARGIN,
 )
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
 from .master import get_master
@@ -696,6 +696,11 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         # Ventil der sidder fast: fuld udgang i lang tid uden at gulvet stiger
         floor = self._read_temp(self._floor_sensor)
+        # Er shuntens fremløb for koldt til at varme gulvet, er det ikke ventilen, der er fejl
+        # (rådet om at skrue shunten op tager sig af det) -> ingen alarm og nulstil uret
+        group = self.hass.data.get(DOMAIN, {}).get(self._pump_group) if self._pump_group else None
+        supply = group.supply_temp() if hasattr(group, "supply_temp") else None
+        supply_low = supply is not None and supply < self.effective_floor_target + SUPPLY_MARGIN
         heating = (
             self._pid_signal >= 90.0
             and self._exercise_start is None
@@ -703,6 +708,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             and floor is not None
             and floor < self.effective_floor_target - 1.0
             and floor < self._max_floor_temp - 1.0
+            and not supply_low
         )
         if heating:
             if self._full_since is None or floor - self._full_floor0 >= STUCK_VALVE_MIN_RISE:

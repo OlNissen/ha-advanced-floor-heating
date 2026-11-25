@@ -362,8 +362,9 @@ Gruppen finder selv sine rum, ventiler og pumpekontakter ud fra rummene. Flytter
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Ny (1.9.1): alarmen "Ventil sidder muligvis fast" udløses ikke, når shuntens fremløb er for koldt til at varme gulvet (mindre end 3 °C over gulvmålet). Så er det shunten, ikke ventilen, og rådet om at skrue op tager sig af det
 - Ny (1.9.0): **fælles notifikationer på Masteren** (HA og/eller push til valgte mobiler, testknap), **alarmer sendes som besked**, og **rummene vælger selv pumpegruppe og pumpekontakt**, så en pumpegruppe kun skal have et navn
 
 - Ny (1.8.0): **pumpegrupper** – pumpestyring (kald, efterløb, motion), `Ventiler åbne` og **shunt-råd** med besked om at skrue shuntens termostat op eller ned

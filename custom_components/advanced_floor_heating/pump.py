@@ -161,6 +161,17 @@ class PumpGroupController:
     def valve_switches(self):
         return [r._heater_switch for r in self.rooms()]
 
+    def supply_temp(self):
+        """Shuntens fremløbstemperatur i °C, eller None hvis der ikke er en brugbar føler."""
+        shunt = self.shunt_sensor
+        state = self.hass.states.get(shunt) if shunt else None
+        if state is None:
+            return None
+        try:
+            return float(state.state)
+        except (TypeError, ValueError):
+            return None
+
     # ------------------------------------------------------------------- livscyklus
 
     async def async_start(self):

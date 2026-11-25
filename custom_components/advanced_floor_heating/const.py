@@ -60,6 +60,7 @@ DEFAULT_STALE_HOURS = 0
 # Alarmer
 STUCK_VALVE_MINUTES = 90      # fuld udgang saa laenge uden at gulvet stiger ...
 STUCK_VALVE_MIN_RISE = 0.5    # ... mindst saa mange grader
+SUPPLY_MARGIN = 3.0           # shuntens fremloeb skal vaere mindst saa mange grader over gulvmaalet, ellers ingen "ventil fast"-alarm
 SENSOR_ALARM_MINUTES = 15     # foeler maa mangle saa laenge, foer det er en alarm
 
 # ---------------------------------------------------------------- Ude-kilde, prognose og sol
