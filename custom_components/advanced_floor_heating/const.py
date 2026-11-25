@@ -102,3 +102,25 @@ PARAM_BOUNDS = {
     "outdoor_ke": (0.0, 5.0), "solar_gain": (0.0, 100.0), "link_weight": (0.1, 1000.0),
 }
 PARAM_MAX_FACTOR = 4.0   # kp/ki/kd maa hoejst ganges/divideres med dette pr. forslag
+
+# ---------------------------------------------------------------- Pumpegruppe (pumpestyring + shunt-raad)
+TYPE_PUMP = "pump_group"
+CONF_GROUP_ROOMS = "group_rooms"            # climate-entiteter i gruppen
+CONF_PUMP_SWITCHES = "pump_switches"        # switches der taender pumpen (IHC "pumpestyring")
+CONF_PUMP_FEEDBACK = "pump_feedback"        # binary_sensor: koerer pumpen? (valgfri, bruges til motion)
+CONF_SHUNT_SENSOR = "shunt_sensor"          # sensor: shuntens fremloeb (valgfri, kun til visning/besked)
+CONF_PUMP_STOP_MINUTES = "pump_stop_minutes"
+DEFAULT_PUMP_STOP_MINUTES = 5               # som IHC: pumpen staar 5 min efter sidste ventil lukkede
+CONF_PUMP_MOTION_DAYS = "pump_motion_days"
+DEFAULT_PUMP_MOTION_DAYS = 7                # motion, hvis pumpen ikke har koert i saa mange dage (0 = fra)
+PUMP_MOTION_MINUTES = 5
+PUMP_MOTION_HOUR = 3
+ADVICE_UP_HOURS = 3                         # "Skru op" skal have holdt saa laenge foer der gives besked
+ADVICE_DOWN_HOURS = 6
+ADVICE_COOLDOWN_HOURS = 24
+ADVICE_OUTPUT_HIGH = 95.0                   # ventilen regnes for "helt aaben"
+ADVICE_OUTPUT_LOW = 25.0
+ADVICE_SHORT = 0.3                          # grader under maal
+ADVICE_FLOOR_HEADROOM = 3.0                 # gulvet maa hoejst vaere saa mange grader over sit maal
+ADVICE_LOW_SHARE = 0.7
+EVENT_SHUNT_ADVICE = "advanced_floor_heating_shunt_advice"

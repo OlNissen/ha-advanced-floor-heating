@@ -11,6 +11,8 @@ from .const import (
     CONF_WEATHER_ENTITY, CONF_FORECAST_HOURS, DEFAULT_FORECAST_HOURS, CONF_SOLAR_GAIN,
     CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT,
     CONF_REVIEW_DAYS, DEFAULT_REVIEW_DAYS, CONF_ALLOW_AI_CHANGES,
+    TYPE_PUMP, CONF_GROUP_ROOMS, CONF_PUMP_SWITCHES, CONF_PUMP_FEEDBACK, CONF_SHUNT_SENSOR,
+    CONF_PUMP_STOP_MINUTES, DEFAULT_PUMP_STOP_MINUTES, CONF_PUMP_MOTION_DAYS, DEFAULT_PUMP_MOTION_DAYS,
 )
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -19,7 +21,7 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Vaelg, om der tilfoejes et rum eller husets Master."""
-        return self.async_show_menu(step_id="user", menu_options=["room", "master"])
+        return self.async_show_menu(step_id="user", menu_options=["room", "pump_group", "master"])
 
     async def async_step_master(self, user_input=None):
         """Masteren: husets tilstand, der sendes ud til alle rum (kun én)."""
@@ -41,6 +43,31 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_WEATHER_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="weather")
+                ),
+            }),
+        )
+
+    async def async_step_pump_group(self, user_input=None):
+        """En pumpegruppe: rum der deler pumpe og shunt (pumpestyring + shunt-råd)."""
+        if user_input is not None:
+            data = {k: v for k, v in user_input.items() if v not in (None, "", [])}
+            data[CONF_ENTRY_TYPE] = TYPE_PUMP
+            return self.async_create_entry(title=user_input["name"], data=data)
+        return self.async_show_form(
+            step_id="pump_group",
+            data_schema=vol.Schema({
+                vol.Required("name", default="Teknikrum"): str,
+                vol.Required(CONF_GROUP_ROOMS): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="climate", integration="advanced_floor_heating", multiple=True)
+                ),
+                vol.Required(CONF_PUMP_SWITCHES): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="switch", multiple=True)
+                ),
+                vol.Optional(CONF_PUMP_FEEDBACK): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="binary_sensor")
+                ),
+                vol.Optional(CONF_SHUNT_SENSOR): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
             }),
         )
@@ -84,6 +111,8 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
         options = self.config_entry.options
         if self.config_entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER:
             return await self.async_step_master_options(user_input)
+        if self.config_entry.data.get(CONF_ENTRY_TYPE) == TYPE_PUMP:
+            return await self.async_step_pump_options(user_input)
         # Window sensor: options win over what was typed in when the room was created
         window_sensor = options.get(
             CONF_WINDOW_SENSOR, self.config_entry.data.get(CONF_WINDOW_SENSOR)
@@ -215,5 +244,55 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_ALLOW_AI_CHANGES,
                     default=bool(current(CONF_ALLOW_AI_CHANGES)),
                 ): selector.BooleanSelector(),
+            }),
+        )
+
+    async def async_step_pump_options(self, user_input=None):
+        """Pumpegruppens indstillinger."""
+        options = self.config_entry.options
+        data_ = self.config_entry.data
+
+        def current(key):
+            return options.get(key, data_.get(key))
+
+        def as_list(value):
+            if not value:
+                return []
+            return [value] if isinstance(value, str) else list(value)
+
+        if user_input is not None:
+            data = dict(user_input)
+            for key in (CONF_PUMP_FEEDBACK, CONF_SHUNT_SENSOR):
+                data.setdefault(key, None)
+            return self.async_create_entry(title="", data=data)
+        return self.async_show_form(
+            step_id="pump_options",
+            data_schema=vol.Schema({
+                vol.Required(CONF_GROUP_ROOMS, default=as_list(current(CONF_GROUP_ROOMS))): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="climate", integration="advanced_floor_heating", multiple=True)
+                ),
+                vol.Required(CONF_PUMP_SWITCHES, default=as_list(current(CONF_PUMP_SWITCHES))): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="switch", multiple=True)
+                ),
+                vol.Optional(CONF_PUMP_FEEDBACK, description={"suggested_value": current(CONF_PUMP_FEEDBACK)}):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="binary_sensor")),
+                vol.Optional(CONF_SHUNT_SENSOR, description={"suggested_value": current(CONF_SHUNT_SENSOR)}):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                    ),
+                vol.Required(
+                    CONF_PUMP_STOP_MINUTES,
+                    default=float(current(CONF_PUMP_STOP_MINUTES) if current(CONF_PUMP_STOP_MINUTES) is not None
+                                  else DEFAULT_PUMP_STOP_MINUTES),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=60, step=1)
+                ),
+                vol.Required(
+                    CONF_PUMP_MOTION_DAYS,
+                    default=float(current(CONF_PUMP_MOTION_DAYS) if current(CONF_PUMP_MOTION_DAYS) is not None
+                                  else DEFAULT_PUMP_MOTION_DAYS),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=90, step=1)
+                ),
             }),
         )

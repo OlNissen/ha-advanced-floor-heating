@@ -2,13 +2,16 @@
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER
+from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, TYPE_PUMP
 from .helpers import UpdateListenerMixin, device_info, ALARM_SIGNAL
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER:
         async_add_entities([MasterAlarm(entry)])
+    elif entry.data.get(CONF_ENTRY_TYPE) == TYPE_PUMP:
+        from .pump_entities import pump_binary_sensors
+        async_add_entities(pump_binary_sensors(entry))
     else:
         async_add_entities([RoomAlarm(entry)])
 

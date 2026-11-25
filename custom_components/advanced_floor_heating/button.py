@@ -1,10 +1,14 @@
 """Knap der anvender resultatet af en færdig autotune."""
 from homeassistant.components.button import ButtonEntity
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_PUMP
 from .helpers import device_info
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
+    if entry.data.get(CONF_ENTRY_TYPE) == TYPE_PUMP:
+        from .pump_entities import pump_buttons
+        async_add_entities(pump_buttons(entry))
+        return
     async_add_entities([ApplyAutotuneButton(entry), ApplyProposalButton(entry)])
 
 

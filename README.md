@@ -315,11 +315,36 @@ data:
 
 Tun gerne ét rum ad gangen. Genstartes HA midt i en test, afbrydes den, og den starter ikke af sig selv igen.
 
-## 🔧 Pumper (IHC-pumpestyring)
+## 🔧 Pumpegrupper: pumpestyring og shunt-råd
 
-I et IHC-anlæg styres cirkulationspumpen ofte af en funktionsblok, som får et **kald fra hvert rums varmestyring** ("Udgang til pumpestyring"). Blokken starter pumpen efter en forsinkelse (hos os 1 min), stopper den efter en anden (5 min) og motionerer den hver 7. dag i 4 min. Slukker du IHC's varmefunktioner, forsvinder kaldene, og pumperne står stille.
+I et IHC-anlæg styres cirkulationspumpen ofte af en funktionsblok, som får et **kald fra hvert rums varmestyring** ("Udgang til pumpestyring"). Slukker du IHC's varmefunktioner, forsvinder kaldene, og pumperne står stille. En **pumpegruppe** overtager det: den samler de rum, der deler pumpe og shunt.
 
-Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_setup.yaml` (se [`ihc/telestat-switches.yaml`](ihc/telestat-switches.yaml) for princippet) og lav en automation pr. pumpe, der tænder pumpestyringen for pumpens rum, mens mindst en af deres telestater er åben, og slukker 5 minutter efter, at alle er lukket. Pumpens egen forsinkelse og motion kan blive i IHC. En ekstra automation kan starte pumpen i 5 minutter, hvis pumpens tilbagemelding ikke har været tændt i 7 dage.
+**Tilføj:** *Tilføj integration → Advanced Floor Heating → Tilføj en pumpegruppe.* Lav én gruppe pr. pumpe/shunt (fx *Teknikrum* og *Kælder*). Du vælger:
+
+| Felt | Hvad |
+|---|---|
+| Rum i gruppen | Rummene (climate), der deler pumpen |
+| Kontakter der tænder pumpen | IHC's "pumpestyring"-ressourcer som `switch` (se [`ihc/telestat-switches.yaml`](ihc/telestat-switches.yaml) for princippet) |
+| Pumpens tilbagemelding *(valgfri)* | `binary_sensor`, der viser, om pumpen kører. Bruges til motion |
+| Shuntens fremløbsføler *(valgfri)* | Temperaturføler på shuntens fremløb. Bruges til visning og i beskeden |
+
+Under *Konfigurer* kan du ændre efterløbet (standard 5 min) og dage uden kørsel før motion (standard 7; 0 = fra).
+
+**Pumpestyring:**
+
+- Pumpens kontakter tændes, så snart en ventil (rummets kontakt) i gruppen åbner.
+- De slukkes *efterløbet* efter, at den sidste er lukket. Åbner en ventil igen i mellemtiden, fortsætter pumpen.
+- Efter en genstart af HA tændes pumpen ved kald, ellers slukkes den.
+- **Motion:** står pumpen stille i 7 dage, tændes den kl. 03:00 i 5 minutter (kræver tilbagemeldingen). Knappen *Pumpemotion nu* kører den med det samme.
+- Kontakten *Pumpestyring aktiv* slår det hele fra, så HA ikke rører pumpens kontakter.
+
+**Shunt-råd:** en termostat på shunten holder en fast fremløbstemperatur og kender ikke vejret. Rådet kigger på ventilerne:
+
+- **Skru op**, når mindst 40 % af rummene (og mindst 2) står på næsten 100 %, er mere end 0,3 °C under målet, og deres gulv har plads til mere varme (ikke ved gulvgrænsen, og ikke langt over gulvmålet). Rummet skal have holdt i **3 timer**.
+- **Skru ned**, når mindst 70 % af rummene har næsten lukkede ventiler, og ingen mangler varme. Skal have holdt i **6 timer**.
+- Beskeden kommer som en HA-notifikation (og som event `advanced_floor_heating_shunt_advice`) og højst én gang i døgnet. Kontakten *Shunt-alarm aktiv* slår den fra.
+
+**Entiteter pr. gruppe:** `Varmekald`, `Pumpe kører`, `Pumpestatus`, `Ventiler åbne` (%), `Shunt Råd`, `Shunt Fremløb`, kontakterne `Pumpestyring aktiv` og `Shunt-alarm aktiv`, og knappen `Pumpemotion nu`.
 
 ## 🛡 Sikkerhed
 
@@ -330,7 +355,9 @@ Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_set
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+
+- Ny (1.8.0): **pumpegrupper** – pumpestyring (kald, efterløb, motion), `Ventiler åbne` og **shunt-råd** med besked om at skrue shuntens termostat op eller ned
 
 - Ny (1.7.0): **gennemgang med AI** – måling af udsving pr. rum, notifikationer om første/ny gennemgang og om rum der svinger, services `get_report`/`set_parameters`/`discard_proposal`, forslag der kræver tryk på `Anvend Forslag`, og ændringslog
 

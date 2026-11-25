@@ -6,7 +6,8 @@
         "description": "Add a room, or the house Master that sends the mode (Occupied/Unoccupied/Frost/Off) to all rooms. There can be only one Master.",
         "menu_options": {
           "room": "Add a room",
-          "master": "Add Master"
+          "master": "Add Master",
+          "pump_group": "Add a pump group (pump control + shunt advice)"
         }
       },
       "room": {
@@ -27,6 +28,17 @@
           "name": "Name",
           "outdoor_sensor": "Outdoor temperature sensor (optional)",
           "weather_entity": "Weather entity for forecast and sun (optional)"
+        }
+      },
+      "pump_group": {
+        "title": "Pump group",
+        "description": "Rooms that share a pump and shunt. Pump control starts the pump when a valve opens and stops it after a run-on delay. Shunt advice tells you when to turn the shunt thermostat up or down.",
+        "data": {
+          "name": "Name (e.g. Technical room or Basement)",
+          "group_rooms": "Rooms in the group",
+          "pump_switches": "Switches that start the pump (IHC pump control)",
+          "pump_feedback": "Pump feedback (optional, used for exercise)",
+          "shunt_sensor": "Shunt supply temperature sensor (optional)"
         }
       }
     },
@@ -64,6 +76,18 @@
           "forecast_hours": "Forecast: average over this many hours ahead",
           "review_days": "Suggest the first review of the settings after this many days of running",
           "allow_ai_changes": "Allow an AI to change settings directly (default: no - it can only propose, and you press Apply Proposal)"
+        }
+      },
+      "pump_options": {
+        "title": "Pump group",
+        "description": "The pump starts on heat demand and stops after the run-on delay. If it has been idle for the set number of days it is exercised at 03:00 for 5 minutes.",
+        "data": {
+          "group_rooms": "Rooms in the group",
+          "pump_switches": "Switches that start the pump",
+          "pump_feedback": "Pump feedback (optional)",
+          "shunt_sensor": "Shunt supply temperature sensor (optional)",
+          "pump_stop_minutes": "Run-on: minutes after the last valve closed before the pump stops",
+          "pump_motion_days": "Exercise: days without running before the pump is exercised (0 = off)"
         }
       }
     }

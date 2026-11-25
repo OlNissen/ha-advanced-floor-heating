@@ -12,6 +12,11 @@ ALARM_SIGNAL = f"{DOMAIN}_alarm_update"
 MASTER_VALUES_SIGNAL = f"{DOMAIN}_master_values_update"  # ude-kilde/prognose/sol aendret
 
 
+def pump_signal(entry_id: str) -> str:
+    """Signal fra en pumpegruppe, naar dens vaerdier er aendret."""
+    return f"{DOMAIN}_{entry_id}_pump"
+
+
 def update_signal(entry_id: str) -> str:
     """Dispatcher signal sent by the climate entity whenever its state changed."""
     return f"{DOMAIN}_{entry_id}_update"

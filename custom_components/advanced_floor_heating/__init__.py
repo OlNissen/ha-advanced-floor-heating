@@ -1,14 +1,27 @@
 import logging
-from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, MASTER_KEY, REVIEW_KEY
+from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, TYPE_PUMP, MASTER_KEY, REVIEW_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS_ROOM = ["climate", "sensor", "number", "switch", "button", "select", "binary_sensor"]
 PLATFORMS_MASTER = ["select", "number", "binary_sensor", "sensor"]
+PLATFORMS_PUMP = ["sensor", "binary_sensor", "switch", "button"]
 
 
 def is_master(entry):
     return entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER
+
+
+def is_pump(entry):
+    return entry.data.get(CONF_ENTRY_TYPE) == TYPE_PUMP
+
+
+def platforms_for(entry):
+    if is_master(entry):
+        return PLATFORMS_MASTER
+    if is_pump(entry):
+        return PLATFORMS_PUMP
+    return PLATFORMS_ROOM
 
 
 async def async_setup_entry(hass, entry):
@@ -29,9 +42,13 @@ async def async_setup_entry(hass, entry):
         hass.data[DOMAIN][MASTER_KEY] = hub
         await hub.async_start()
         entry.async_on_unload(hub.async_stop)
-        platforms = PLATFORMS_MASTER
-    else:
-        platforms = PLATFORMS_ROOM
+    elif is_pump(entry):
+        from .pump import PumpGroupController
+        controller = PumpGroupController(hass, entry)
+        hass.data[DOMAIN][entry.entry_id] = controller
+        await controller.async_start()
+        entry.async_on_unload(controller.async_stop)
+    platforms = platforms_for(entry)
 
     # Forward the setup to the platforms
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
@@ -49,7 +66,7 @@ async def update_listener(hass, entry):
 
 async def async_unload_entry(hass, entry):
     """Unload a config entry and its platforms."""
-    platforms = PLATFORMS_MASTER if is_master(entry) else PLATFORMS_ROOM
+    platforms = platforms_for(entry)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, platforms)
 
     if unload_ok:

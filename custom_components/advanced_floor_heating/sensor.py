@@ -4,7 +4,7 @@ from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, Sen
 from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from .const import DOMAIN, MASTER_KEY, CONF_ENTRY_TYPE, TYPE_MASTER
+from .const import DOMAIN, MASTER_KEY, CONF_ENTRY_TYPE, TYPE_MASTER, TYPE_PUMP
 from .helpers import UpdateListenerMixin, device_info, MASTER_SIGNAL, MASTER_VALUES_SIGNAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,6 +13,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the room sensors (PID, Status, runtime today) - or the Master's outdoor/sun sensors."""
     if entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER:
         async_add_entities([MasterOutdoorSensor(entry), MasterSolarSensor(entry)])
+        return
+    if entry.data.get(CONF_ENTRY_TYPE) == TYPE_PUMP:
+        from .pump_entities import pump_sensors
+        async_add_entities(pump_sensors(entry))
         return
     async_add_entities([
         PIDSignalSensor(entry),

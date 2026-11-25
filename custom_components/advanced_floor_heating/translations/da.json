@@ -6,7 +6,8 @@
         "description": "Tilføj et rum, eller husets Master, der sender tilstanden (Beboet/Ubeboet/Frostsikker/Slukket) ud til alle rum. Der kan kun være én Master.",
         "menu_options": {
           "room": "Tilføj et rum",
-          "master": "Tilføj Master"
+          "master": "Tilføj Master",
+          "pump_group": "Tilføj en pumpegruppe (pumpestyring + shunt-råd)"
         }
       },
       "room": {
@@ -27,6 +28,17 @@
           "name": "Navn",
           "outdoor_sensor": "Udetemperatur-føler (valgfri)",
           "weather_entity": "Vejr-entitet til prognose og sol (valgfri)"
+        }
+      },
+      "pump_group": {
+        "title": "Pumpegruppe",
+        "description": "Rum der deler pumpe og shunt. Pumpestyringen tænder pumpen, når en ventil åbner, og slukker den efter et efterløb. Shunt-rådet siger til, når shuntens termostat bør skrues op eller ned.",
+        "data": {
+          "name": "Navn (fx Teknikrum eller Kælder)",
+          "group_rooms": "Rum i gruppen",
+          "pump_switches": "Kontakter der tænder pumpen (IHC-pumpestyring)",
+          "pump_feedback": "Pumpens tilbagemelding (valgfri, bruges til motion)",
+          "shunt_sensor": "Shuntens fremløbsføler (valgfri)"
         }
       }
     },
@@ -64,6 +76,18 @@
           "forecast_hours": "Prognose: middel over så mange timer frem",
           "review_days": "Foreslå første gennemgang af indstillingerne efter så mange dages drift",
           "allow_ai_changes": "Tillad at en AI ændrer indstillinger direkte (standard: nej - den kan kun foreslå, og du trykker Anvend Forslag)"
+        }
+      },
+      "pump_options": {
+        "title": "Pumpegruppe",
+        "description": "Pumpen tændes ved varmekald og slukkes efter efterløbet. Står den stille i så mange dage, motioneres den kl. 03:00 i 5 minutter.",
+        "data": {
+          "group_rooms": "Rum i gruppen",
+          "pump_switches": "Kontakter der tænder pumpen",
+          "pump_feedback": "Pumpens tilbagemelding (valgfri)",
+          "shunt_sensor": "Shuntens fremløbsføler (valgfri)",
+          "pump_stop_minutes": "Efterløb: minutter efter sidste lukkede ventil, før pumpen slukkes",
+          "pump_motion_days": "Motion: dage uden kørsel før pumpen motioneres (0 = fra)"
         }
       }
     }
