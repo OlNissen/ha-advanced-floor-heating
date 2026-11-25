@@ -25,6 +25,8 @@ from .const import (
 )
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
 from .master import get_master
+from .review import RoomMetrics
+from .const import REVIEW_KEY
 from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 
 _LOGGER = logging.getLogger(__name__)
@@ -125,6 +127,9 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         # Koblede rum (samme luftrum, hver sin shunt/gulv): fælles rumtemperatur som vægtet middel
         self._linked_rooms = _as_list(_option(entry, CONF_LINKED_ROOMS))
         self._link_weight = float(_option(entry, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT) or DEFAULT_LINK_WEIGHT)
+
+        # Målinger til gennemgang (udsving m.m.)
+        self._metrics = RoomMetrics()
 
         # Alarmer og driftstid
         self._alarms = []
@@ -308,10 +313,12 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         if mode in ROOM_MODE_OPTIONS and mode != self._mode_override:
             self._mode_override = mode
             self._reset_d = True
+            self._metrics.reset_hunt()
             await self._async_calculate_heating_demand()
 
     async def _async_master_changed(self):
         self._reset_d = True
+        self._metrics.reset_hunt()
         await self._async_calculate_heating_demand()
 
     @property
@@ -479,6 +486,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "control_room_temperature": (
                 round(self._control_room_temp(), 2) if self._control_room_temp() is not None else None
             ),
+            "hunting": self._metrics.hunting(),
+            "pending_proposal": self._pending_proposal(),
             "outdoor_ke": self._ke,
             "solar_gain": self._ks,
             "pid_ff": round(self._ff_out, 2),
@@ -501,7 +510,26 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         """Main loop for PID calculations."""
         while True:
             await self._async_calculate_heating_demand()
+            self._record_metrics()
             await asyncio.sleep(max(1, self._pid_interval))
+
+    def _record_metrics(self):
+        """Gem et måle-punkt til gennemgangen - kun mens rummet regulerer helt normalt."""
+        if (
+            self._attr_hvac_mode == HVACMode.OFF
+            or self.house_mode == MODE_OFF
+            or self._tuner is not None
+            or self._exercise_start is not None
+        ):
+            return
+        status = self._regulation_status or ""
+        if "mangler" in status or "gammel" in status or status.startswith("Sikkerhedsstop"):
+            return
+        floor = self._read_temp(self._floor_sensor)
+        if floor is None:
+            return
+        ctrl = self._control_room_temp() if self._attr_preset_mode != PRESET_FLOOR_ONLY else floor
+        self._metrics.add(time.time(), self._current_error, ctrl, floor, self._pid_signal, self._frozen)
 
     @staticmethod
     def _iso(epoch):
@@ -624,6 +652,25 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         self._update_alarms()
         self._publish()
+
+    # ----------------------------------------------------------- forslag og gennemgang
+
+    def _review(self):
+        return self.hass.data.get(DOMAIN, {}).get(REVIEW_KEY)
+
+    def _pending_proposal(self):
+        mgr = self._review()
+        return mgr.get_proposal(self.entity_id) if mgr is not None else None
+
+    async def async_apply_params(self, params):
+        """Gem nye værdier (Kp/Ki/Kd, ke, ks, vægt) i rummets indstillinger; rummet genindlæses."""
+        options = {**self._entry.options, **params}
+        self.hass.config_entries.async_update_entry(self._entry, options=options)
+
+    async def async_apply_proposal(self):
+        mgr = self._review()
+        if mgr is not None:
+            await mgr.async_apply_proposal(self)
 
     # ----------------------------------------------------------------- alarmer
 
@@ -901,12 +948,14 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
     async def async_set_room_temperature(self, temperature):
         """Sets ONLY the room target temperature."""
         self._target_temp_room = float(temperature)
+        self._metrics.reset_hunt()
         await self._async_calculate_heating_demand()
         await self._async_sync_room_setpoint(self._target_temp_room)
 
     async def async_set_floor_temperature(self, temperature):
         """Sets ONLY the floor target temperature."""
         self._target_temp_floor = float(temperature)
+        self._metrics.reset_hunt()
         await self._async_calculate_heating_demand()
 
     # Standard fallback command
@@ -924,6 +973,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
     async def async_set_preset_mode(self, preset_mode):
         if preset_mode in self._attr_preset_modes:
             self._attr_preset_mode = preset_mode
+            self._metrics.reset_hunt()
             await self._async_calculate_heating_demand()
 
     async def async_set_hvac_mode(self, hvac_mode):

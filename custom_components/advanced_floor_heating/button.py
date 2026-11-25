@@ -5,7 +5,24 @@ from .helpers import device_info
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities([ApplyAutotuneButton(entry)])
+    async_add_entities([ApplyAutotuneButton(entry), ApplyProposalButton(entry)])
+
+
+class ApplyProposalButton(ButtonEntity):
+    """Anvender et forslag til nye indstillinger (fra en AI-gennemgang). Intet ændres uden dette tryk."""
+
+    _attr_icon = "mdi:check-decagram"
+
+    def __init__(self, entry):
+        self._attr_name = f"{entry.data['name']} Anvend Forslag"
+        self._attr_unique_id = f"{entry.entry_id}_apply_proposal"
+        self._attr_device_info = device_info(entry)
+        self._entry_id = entry.entry_id
+
+    async def async_press(self):
+        climate = self.hass.data[DOMAIN].get(self._entry_id)
+        if climate:
+            await climate.async_apply_proposal()
 
 
 class ApplyAutotuneButton(ButtonEntity):

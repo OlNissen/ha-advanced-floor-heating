@@ -61,7 +61,9 @@
         "data": {
           "outdoor_sensor": "Udetemperatur-føler (valgfri)",
           "weather_entity": "Vejr-entitet til prognose og sol (valgfri)",
-          "forecast_hours": "Prognose: middel over så mange timer frem"
+          "forecast_hours": "Prognose: middel over så mange timer frem",
+          "review_days": "Foreslå første gennemgang af indstillingerne efter så mange dages drift",
+          "allow_ai_changes": "Tillad at en AI ændrer indstillinger direkte (standard: nej - den kan kun foreslå, og du trykker Anvend Forslag)"
         }
       }
     }

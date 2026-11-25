@@ -132,6 +132,32 @@ Sådan kobler du: **Konfigurer** på hvert af rummene → *Koblede rum* → væl
 
 Autotune bruger også den fælles rumtemperatur. De koblede rum påvirker hinanden, så tun ét rum ad gangen og sæt det andet til `Slukket` under testen (rummets *Husstilstand*).
 
+## 🤖 Gennemgang af indstillingerne (til dig og en AI)
+
+Regulatoren måler selv, hvordan hvert rum opfører sig, og kan give en AI-assistent (fx Claude via Assist/MCP i HA, eller en automation) et overblik, så den kan foreslå bedre indstillinger. **Intet ændres uden dit ok.**
+
+**Notifikationer** (som HA-notifikationer, og som events, du kan sende videre til din telefon):
+
+- **Første gennemgang:** efter 14 dages drift (kan ændres på Masteren: *Foreslå første gennemgang efter … dage*) kommer en besked om, at der nu er data nok. Den forklarer, hvad du skal gøre.
+- **Ny gennemgang:** 30 dage efter den sidste.
+- **Et rum svinger (hakker):** skifter et rum mindst 6 gange på 24 timer mellem for koldt og for varmt (±0,2 °C), og udgangen svinger mindst 40 procentpoint, foreslås en ny gennemgang af netop det rum. Ikke de første 2 dage, ikke under autotune, og højst én gang pr. rum om ugen. Et nyt setpunkt eller en ny tilstand nulstiller tælleren, så naturlige skift ikke tæller.
+
+Events (til egne automationer): `advanced_floor_heating_review_suggested` (med `reason`: `first`, `periodic` eller `hunting`) og `advanced_floor_heating_proposal`.
+
+**Services til en AI-assistent:**
+
+| Service | Hvad |
+|---|---|
+| `advanced_floor_heating.get_report` | Returnerer en kort rapport pr. rum: mål og temperaturer, PID, tillæg, vægt, alarmer og de seneste 24 timer (tid inden for 0,3 °C, tid for koldt/varmt, udgang min/max/middel, udsving, antal skift). Markerer en gennemgang som udført |
+| `advanced_floor_heating.set_parameters` | **Foreslår** nye værdier for et rum: `kp`, `ki`, `kd`, `outdoor_ke`, `solar_gain`, `link_weight` (+ `reason`). Tjekkes mod grænser; Kp/Ki/Kd må højst ændres med en faktor 4 ad gangen |
+| `advanced_floor_heating.discard_proposal` | Kasserer et forslag |
+
+Et forslag vises som notifikation og som attributten `pending_proposal` på rummet. Du bruger det med knappen **`Anvend Forslag`** (`button.<rum>_anvend_forslag`), og det kasseres ved at ignorere det. Hver anvendt ændring logges (gammel og ny værdi, hvem, hvorfor) og står i `recent_changes` i rapporten.
+
+**Hvad en AI ikke kan:** ændre gulvgrænsen, vinduesreglen eller ventilmotionen. Den kan heller ikke anvende et forslag selv, medmindre du slår *Tillad at en AI ændrer indstillinger direkte* til på Masteren (standard: nej). Vil du være sikker på, at en AI ikke selv kan trykke på knappen, så lad være at give Assist adgang til `button.*_anvend_forslag`.
+
+`last_24h` dækker de seneste 24 timer og nulstilles ved genstart af HA. Til længere analyser ligger historikken i HA's recorder. Giv den mindst 30 dage (`recorder: purge_keep_days: 45` i `configuration.yaml`; standard er 10).
+
 ## 🌦 Udekompensation, prognose og sol
 
 To valgfrie tillæg oven på PID-udgangen. Begge er **slået fra som standard** (`ke` = 0 og `ks` = 0 pr. rum), så regulatoren opfører sig som før, indtil du selv slår dem til.
@@ -304,7 +330,9 @@ Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_set
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+
+- Ny (1.7.0): **gennemgang med AI** – måling af udsving pr. rum, notifikationer om første/ny gennemgang og om rum der svinger, services `get_report`/`set_parameters`/`discard_proposal`, forslag der kræver tryk på `Anvend Forslag`, og ændringslog
 
 - Ny (1.6.0): **koblede rum** med vægtet fælles rumtemperatur, fælles rum-setpunkt og fallback ved manglende føler
 

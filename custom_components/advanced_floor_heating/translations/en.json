@@ -61,7 +61,9 @@
         "data": {
           "outdoor_sensor": "Outdoor temperature sensor (optional)",
           "weather_entity": "Weather entity for forecast and sun (optional)",
-          "forecast_hours": "Forecast: average over this many hours ahead"
+          "forecast_hours": "Forecast: average over this many hours ahead",
+          "review_days": "Suggest the first review of the settings after this many days of running",
+          "allow_ai_changes": "Allow an AI to change settings directly (default: no - it can only propose, and you press Apply Proposal)"
         }
       }
     }

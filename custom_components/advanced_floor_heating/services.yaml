@@ -102,3 +102,97 @@ apply_autotune:
   target:
     entity:
       domain: climate
+
+get_report:
+  name: Get Report
+  description: >
+    Returnerer en kort rapport pr. rum (mål, temperaturer, PID, udsving og tid inden for målet de seneste 24 timer)
+    til en AI-assistent. Markerer samtidig en gennemgang som udført.
+  fields:
+    mark_reviewed:
+      name: Mark as reviewed
+      description: Registrer at en gennemgang er udført (standard ja).
+      default: true
+      selector:
+        boolean:
+
+set_parameters:
+  name: Set Parameters
+  description: >
+    Foreslå nye værdier for et rum (Kp/Ki/Kd, udekompensation, sol-fradrag, vægt). Værdierne tjekkes mod grænser og
+    gemmes som forslag, som du anvender med knappen Anvend Forslag. Gulvgrænse og vinduesregel kan ikke ændres.
+  fields:
+    entity_id:
+      name: Room
+      description: Rummets climate-entity.
+      required: true
+      example: climate.kokken
+      selector:
+        entity:
+          domain: climate
+          integration: advanced_floor_heating
+    kp:
+      name: Kp
+      selector:
+        number:
+          min: 0
+          max: 200
+          step: 0.1
+    ki:
+      name: Ki
+      selector:
+        number:
+          min: 0
+          max: 200
+          step: 0.1
+    kd:
+      name: Kd
+      selector:
+        number:
+          min: 0
+          max: 200
+          step: 0.1
+    outdoor_ke:
+      name: Outdoor compensation ke
+      selector:
+        number:
+          min: 0
+          max: 5
+          step: 0.05
+    solar_gain:
+      name: Solar gain ks
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+    link_weight:
+      name: Link weight
+      selector:
+        number:
+          min: 0.1
+          max: 1000
+          step: 0.1
+    reason:
+      name: Reason
+      description: Kort begrundelse (vises i notifikationen).
+      selector:
+        text:
+    apply:
+      name: Apply directly
+      description: Kun hvis Masteren tillader AI-ændringer; ellers bliver det et forslag.
+      default: false
+      selector:
+        boolean:
+
+discard_proposal:
+  name: Discard Proposal
+  description: Kasserer et afventende forslag for et rum.
+  fields:
+    entity_id:
+      name: Room
+      required: true
+      selector:
+        entity:
+          domain: climate
+          integration: advanced_floor_heating

@@ -82,3 +82,23 @@ SOLAR_FULL_ELEVATION = 30.0      # solhoejde (grader), hvor solen regnes for "fu
 CONF_LINKED_ROOMS = "linked_rooms"     # climate-entiteter i samme luftrum (hvert rum vælger selv)
 CONF_LINK_WEIGHT = "link_weight"       # rummets vægt i det fælles middel (f.eks. m2)
 DEFAULT_LINK_WEIGHT = 1.0
+
+# ---------------------------------------------------------------- Gennemgang, udsving og AI
+REVIEW_KEY = "review"                       # noegle i hass.data[DOMAIN]
+CONF_REVIEW_DAYS = "review_days"            # paa Masteren: foreslaa foerste gennemgang efter saa mange dages drift
+DEFAULT_REVIEW_DAYS = 14
+CONF_ALLOW_AI_CHANGES = "allow_ai_changes"  # paa Masteren: maa en AI aendre indstillinger direkte (standard nej)
+REVIEW_REPEAT_DAYS = 30                     # ny gennemgang foreslaas, naar den sidste er saa gammel
+HUNT_WINDOW_HOURS = 24
+HUNT_BAND = 0.2                             # graders hysterese om setpunktet
+HUNT_MIN_CROSSINGS = 6                      # skift mellem for koldt/for varmt i vinduet
+HUNT_MIN_OUTPUT_SWING = 40.0                # procentpoint mellem laveste og hoejeste udgang
+HUNT_NOTIFY_COOLDOWN_DAYS = 7
+HUNT_MIN_RUNNING_DAYS = 2                   # ingen udsvings-besked de foerste dage
+EVENT_REVIEW = "advanced_floor_heating_review_suggested"
+# Graenser for AI-forslag (mindre aendringer ad gangen)
+PARAM_BOUNDS = {
+    "kp": (0.0, 200.0), "ki": (0.0, 200.0), "kd": (0.0, 200.0),
+    "outdoor_ke": (0.0, 5.0), "solar_gain": (0.0, 100.0), "link_weight": (0.1, 1000.0),
+}
+PARAM_MAX_FACTOR = 4.0   # kp/ki/kd maa hoejst ganges/divideres med dette pr. forslag

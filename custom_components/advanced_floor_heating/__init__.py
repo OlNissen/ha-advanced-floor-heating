@@ -1,5 +1,5 @@
 import logging
-from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, MASTER_KEY
+from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, MASTER_KEY, REVIEW_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -14,6 +14,14 @@ def is_master(entry):
 async def async_setup_entry(hass, entry):
     """Set up Advanced Floor Heating (et rum eller Masteren)."""
     hass.data.setdefault(DOMAIN, {})
+
+    # Gennemgang, rapport og forslag (én gang for hele integrationen)
+    if REVIEW_KEY not in hass.data[DOMAIN]:
+        from .review import ReviewManager, async_register_services
+        manager = ReviewManager(hass)
+        hass.data[DOMAIN][REVIEW_KEY] = manager
+        await manager.async_start()
+        async_register_services(hass)
 
     if is_master(entry):
         from .master import MasterHub

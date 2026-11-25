@@ -11,6 +11,7 @@ from .const import (
     CONF_OUTDOOR_SENSOR, CONF_WEATHER_ENTITY, CONF_FORECAST_HOURS, DEFAULT_FORECAST_HOURS,
     SOURCE_MEASURED, SOURCE_FORECAST, SOURCE_BOTH, OUTDOOR_SOURCES, DEFAULT_OUTDOOR_SOURCE,
     FORECAST_REFRESH_MINUTES, FORECAST_MAX_AGE_HOURS, SOLAR_FULL_ELEVATION,
+    CONF_REVIEW_DAYS, DEFAULT_REVIEW_DAYS, CONF_ALLOW_AI_CHANGES,
 )
 from .helpers import MASTER_SIGNAL, ALARM_SIGNAL, MASTER_VALUES_SIGNAL
 
@@ -116,6 +117,15 @@ class MasterHub:
     @property
     def weather_entity(self):
         return self._option(CONF_WEATHER_ENTITY)
+
+    @property
+    def review_days(self):
+        value = _num(self._option(CONF_REVIEW_DAYS))
+        return value if value else DEFAULT_REVIEW_DAYS
+
+    @property
+    def allow_ai_changes(self):
+        return bool(self._option(CONF_ALLOW_AI_CHANGES))
 
     @property
     def forecast_hours(self):

@@ -10,6 +10,7 @@ from .const import (
     CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS,
     CONF_WEATHER_ENTITY, CONF_FORECAST_HOURS, DEFAULT_FORECAST_HOURS, CONF_SOLAR_GAIN,
     CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT,
+    CONF_REVIEW_DAYS, DEFAULT_REVIEW_DAYS, CONF_ALLOW_AI_CHANGES,
 )
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -204,5 +205,15 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=1, max=12, step=1)
                 ),
+                vol.Required(
+                    CONF_REVIEW_DAYS,
+                    default=float(current(CONF_REVIEW_DAYS) or DEFAULT_REVIEW_DAYS),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=3, max=120, step=1)
+                ),
+                vol.Required(
+                    CONF_ALLOW_AI_CHANGES,
+                    default=bool(current(CONF_ALLOW_AI_CHANGES)),
+                ): selector.BooleanSelector(),
             }),
         )
