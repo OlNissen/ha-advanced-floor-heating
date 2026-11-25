@@ -357,10 +357,9 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         # Besked fra Masteren: skift af husets tilstand
         self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass, MASTER_SIGNAL,
-                lambda: self.hass.async_create_task(self._async_master_changed()),
-            )
+            # Coroutine direkte: dispatcheren koerer den i event-loopet (en lambda ville
+            # blive koert i en traad, og async_create_task fejler dér)
+            async_dispatcher_connect(self.hass, MASTER_SIGNAL, self._async_master_changed)
         )
 
         # Start the "Brain" and the "Muscle" tasks
