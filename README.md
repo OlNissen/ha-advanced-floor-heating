@@ -118,6 +118,20 @@ Hvert rum har også en `select.<rum>_husstilstand` med `Fælles` (følger Master
 
 Autotune kan kun køre, mens rummet er `Beboet`; skifter tilstanden undervejs, afbrydes testen. PID-parametre og cyklustider påvirkes ikke af tilstandene.
 
+## 🔗 Koblede rum
+
+Hører to rum til **samme luftrum** (f.eks. køkken og stue med et niveauspring imellem), kan de kobles. Hvert rum beholder sin egen gulvføler, gulvgrænse, ventil, shunt og PID, men:
+
+- **Fælles rumtemperatur:** regulatoren regner med det **vægtede middel** af de koblede rums rumfølere. Begge rum ser så samme rumtemperatur og modarbejder ikke hinanden. Rummets egen måling vises stadig på kortet (`room_temperature`); den fælles står i `control_room_temperature`.
+- **Vægt:** hvert rum har en vægt (f.eks. rummets m²). Er stuen 30 m² og køkkenet 10 m², tæller stuens føler 3 gange så meget. Lige vægt (1) giver et almindeligt middel.
+- **Fælles rum-setpunkt:** ændrer du rum-setpunktet i det ene rum, følger det andet med. Gulv-setpunkter er hvert rums egne, for rummene har hver sin shunt og gulv.
+- **Manglende føler:** mangler det ene rums rumføler, bruges de øvrige i stedet for at slukke varmen (uden kobling slukkes den som før).
+- Vinduer og døre er stadig pr. rum: vælg de samme kontakter i begge rum, så fryser begge udgange.
+
+Sådan kobler du: **Konfigurer** på hvert af rummene → *Koblede rum* → vælg det andet rum, og sæt *Vægt*. Gør det i **begge** rum (kobles kun det ene, følger kun det ene med). Er et rum sat til `Kun Gulv`, bruges dets rumføler ikke til regulering, men setpunktet synkroniseres stadig.
+
+Autotune bruger også den fælles rumtemperatur. De koblede rum påvirker hinanden, så tun ét rum ad gangen og sæt det andet til `Slukket` under testen (rummets *Husstilstand*).
+
 ## 🌦 Udekompensation, prognose og sol
 
 To valgfrie tillæg oven på PID-udgangen. Begge er **slået fra som standard** (`ke` = 0 og `ks` = 0 pr. rum), så regulatoren opfører sig som før, indtil du selv slår dem til.
@@ -290,7 +304,9 @@ Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_set
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.6.0, 1.5.0 og 1.4.0
+
+- Ny (1.6.0): **koblede rum** med vægtet fælles rumtemperatur, fælles rum-setpunkt og fallback ved manglende føler
 
 - Ny: **Master** med husets tilstand (Beboet/Ubeboet/Frostsikker/Slukket), temperaturer for Ubeboet og Frostsikker, og en tilstand pr. rum, der kan overstyre
 - Ny: alarmer (føler mangler/gammel, mulig fastsiddende ventil) og `Driftstid i dag`

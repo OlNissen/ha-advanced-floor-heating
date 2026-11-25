@@ -20,6 +20,7 @@ from .const import (
     MODE_OCCUPIED, MODE_UNOCCUPIED, MODE_FROST, MODE_OFF, MODE_FOLLOW, ROOM_MODE_OPTIONS,
     DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP,
     CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS, CONF_SOLAR_GAIN,
+    CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT,
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES,
 )
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
@@ -121,6 +122,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._ks = float(_option(entry, CONF_SOLAR_GAIN, 0.0) or 0.0)  # sol-fradrag (% udgang ved fuld sol)
         self._ff_out = 0.0
 
+        # Koblede rum (samme luftrum, hver sin shunt/gulv): fælles rumtemperatur som vægtet middel
+        self._linked_rooms = _as_list(_option(entry, CONF_LINKED_ROOMS))
+        self._link_weight = float(_option(entry, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT) or DEFAULT_LINK_WEIGHT)
+
         # Alarmer og driftstid
         self._alarms = []
         self._sensor_bad_since = {}   # entity_id -> monotonic-tid hvor den begyndte at mangle
@@ -201,6 +206,46 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         if self._sensor_problem(entity_id) is not None:
             return None
         return float(self.hass.states.get(entity_id).state)
+
+    # ------------------------------------------------------------- koblede rum
+
+    def _linked_entities(self):
+        """De koblede rums regulatorer (kun dem der findes og er indlæst)."""
+        wanted = set(self._linked_rooms)
+        if not wanted:
+            return []
+        return [
+            obj for obj in self.hass.data.get(DOMAIN, {}).values()
+            if obj is not self and getattr(obj, "entity_id", None) in wanted
+            and hasattr(obj, "_room_sensor")
+        ]
+
+    def _control_room_temp(self):
+        """Rumtemperaturen regulatoren bruger: eget rum, eller vægtet middel med de koblede rum.
+
+        Mangler en føler, bruges de øvrige. None hvis ingen føler er til rådighed.
+        """
+        pairs = []
+        own = self._read_temp(self._room_sensor)
+        if own is not None:
+            pairs.append((self._link_weight, own))
+        for other in self._linked_entities():
+            value = other._read_temp(other._room_sensor)
+            if value is not None:
+                pairs.append((other._link_weight, value))
+        if not pairs:
+            return None
+        if len(pairs) == 1:
+            return pairs[0][1]
+        total = sum(w for w, _ in pairs)
+        return sum(w * t for w, t in pairs) / total
+
+    async def _async_sync_room_setpoint(self, value):
+        """Et koblet rum følger, når rum-setpunktet ændres (gulv-setpunkter er hvert rums egne)."""
+        for other in self._linked_entities():
+            if other._target_temp_room != value:
+                other._target_temp_room = value
+                await other._async_calculate_heating_demand()
 
     # ---------------------------------------------------------- husets tilstand
 
@@ -429,6 +474,11 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "mode_override": self._mode_override,
             "effective_room_target": round(self.effective_room_target, 2),
             "effective_floor_target": round(self.effective_floor_target, 2),
+            "linked_rooms": self._linked_rooms,
+            "link_weight": self._link_weight,
+            "control_room_temperature": (
+                round(self._control_room_temp(), 2) if self._control_room_temp() is not None else None
+            ),
             "outdoor_ke": self._ke,
             "solar_gain": self._ks,
             "pid_ff": round(self._ff_out, 2),
@@ -554,7 +604,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._frozen = True
             self._regulation_status = f"Vindue åbent - udgang frosset ved {round(self._pid_signal)}%"
         else:
-            curr_room = self._read_temp(self._room_sensor) if uses_room else None
+            curr_room = self._control_room_temp() if uses_room else None
             if uses_room and curr_room is None:
                 problem = self._sensor_problem(self._room_sensor) or "mangler"
                 self._pid_signal = 0.0
@@ -650,7 +700,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
         if target == "room" and self.window_open:
             return self._autotune_abort("vindue åbent")
-        pv = self._read_temp(self._room_sensor if target == "room" else self._floor_sensor)
+        pv = self._control_room_temp() if target == "room" else self._read_temp(self._floor_sensor)
         if pv is None:
             return self._autotune_abort("føler mangler")
         # Gulv-sikkerheden gælder altid - og en afkortet test giver ugyldige tal
@@ -691,7 +741,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             return
         if target is None:
             target = "floor" if self._attr_preset_mode == PRESET_FLOOR_ONLY else "room"
-        pv = self._read_temp(self._room_sensor if target == "room" else self._floor_sensor)
+        pv = self._control_room_temp() if target == "room" else self._read_temp(self._floor_sensor)
         if pv is None:
             self._autotune_msg = "Autotune kan ikke startes: føler mangler"
             self._publish()
@@ -852,6 +902,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         """Sets ONLY the room target temperature."""
         self._target_temp_room = float(temperature)
         await self._async_calculate_heating_demand()
+        await self._async_sync_room_setpoint(self._target_temp_room)
 
     async def async_set_floor_temperature(self, temperature):
         """Sets ONLY the floor target temperature."""
@@ -867,6 +918,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             else:
                 self._target_temp_room = temp
             await self._async_calculate_heating_demand()
+            if self._attr_preset_mode != PRESET_FLOOR_ONLY:
+                await self._async_sync_room_setpoint(self._target_temp_room)
 
     async def async_set_preset_mode(self, preset_mode):
         if preset_mode in self._attr_preset_modes:

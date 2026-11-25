@@ -9,6 +9,7 @@ from .const import (
     CONF_ENTRY_TYPE, TYPE_ROOM, TYPE_MASTER, DEFAULT_MASTER_NAME,
     CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS,
     CONF_WEATHER_ENTITY, CONF_FORECAST_HOURS, DEFAULT_FORECAST_HOURS, CONF_SOLAR_GAIN,
+    CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT,
 )
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -90,11 +91,16 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
         if isinstance(window_sensor, str):
             window_sensor = [window_sensor]
         window_sensor = window_sensor or []
+        linked = options.get(CONF_LINKED_ROOMS, self.config_entry.data.get(CONF_LINKED_ROOMS))
+        if isinstance(linked, str):
+            linked = [linked]
+        linked = linked or []
 
         if user_input is not None:
             data = dict(user_input)
             # Store the key even when cleared, so options override the old value
             data.setdefault(CONF_WINDOW_SENSOR, [])
+            data.setdefault(CONF_LINKED_ROOMS, [])
             return self.async_create_entry(title="", data=data)
         
         window_key = (
@@ -106,6 +112,17 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 window_key: selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
+                ),
+                vol.Optional(CONF_LINKED_ROOMS, description={"suggested_value": linked}): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="climate", integration="advanced_floor_heating", multiple=True
+                    )
+                ),
+                vol.Required(
+                    CONF_LINK_WEIGHT,
+                    default=float(options.get(CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0.1, max=1000, step=0.1)
                 ),
                 vol.Required(
                     CONF_MAX_FLOOR_TEMP,

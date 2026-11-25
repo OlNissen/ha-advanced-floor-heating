@@ -50,7 +50,9 @@
           "valve_exercise_days": "Ventilmotion: åbn ventilen, hvis den ikke har været åben i så mange dage (0 = fra)",
           "stale_hours": "Føler uden opdatering i så mange timer tæller som mangler (0 = fra)",
           "outdoor_ke": "Udekompensation ke (% udgang pr. grad forskel mellem mål og ude, 0 = fra)",
-          "solar_gain": "Sol-fradrag ks (% udgang fratrukket ved fuld sol, 0 = fra)"
+          "solar_gain": "Sol-fradrag ks (% udgang fratrukket ved fuld sol, 0 = fra)",
+          "linked_rooms": "Koblede rum (samme luftrum, valgfri): rummenes rumtemperatur midles, og rum-setpunktet følger med. Vælg det i begge rum",
+          "link_weight": "Vægt i det fælles middel (f.eks. rummets m², bruges kun ved koblede rum)"
         }
       },
       "master_options": {

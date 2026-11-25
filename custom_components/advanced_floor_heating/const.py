@@ -77,3 +77,8 @@ DEFAULT_OUTDOOR_SOURCE = SOURCE_MEASURED
 FORECAST_REFRESH_MINUTES = 30
 FORECAST_MAX_AGE_HOURS = 3       # aeldre prognose bruges ikke
 SOLAR_FULL_ELEVATION = 30.0      # solhoejde (grader), hvor solen regnes for "fuld"
+
+# ---------------------------------------------------------------- Koblede rum
+CONF_LINKED_ROOMS = "linked_rooms"     # climate-entiteter i samme luftrum (hvert rum vælger selv)
+CONF_LINK_WEIGHT = "link_weight"       # rummets vægt i det fælles middel (f.eks. m2)
+DEFAULT_LINK_WEIGHT = 1.0

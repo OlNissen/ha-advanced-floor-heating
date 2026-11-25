@@ -50,7 +50,9 @@
           "valve_exercise_days": "Valve exercise: open the valve if it has not been open for this many days (0 = off)",
           "stale_hours": "A sensor without updates for this many hours counts as missing (0 = off)",
           "outdoor_ke": "Outdoor compensation ke (% output per degree between target and outdoor, 0 = off)",
-          "solar_gain": "Solar gain ks (% output subtracted at full sun, 0 = off)"
+          "solar_gain": "Solar gain ks (% output subtracted at full sun, 0 = off)",
+          "linked_rooms": "Linked rooms (same air space, optional): room temperatures are averaged and the room setpoint follows. Set it in both rooms",
+          "link_weight": "Weight in the shared average (e.g. room m², only used with linked rooms)"
         }
       },
       "master_options": {
