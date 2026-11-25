@@ -34,7 +34,7 @@ Gulvtemperaturgrænse (kun vi og ScratMan-kaskaden har noget lignende), vindues-
 
 | # | Forslag | Hvorfor | Indsats |
 |---|---|---|---|
-| 1 | **PWM tilpasset termomotorer:** cyklus 30 min (som IHC), minimum tændetid ca. 5–9 min, spring små pulser over, og forskyd rummenes cyklusser | Telestater bruger ~3–4 min på at åbne/lukke. Vores 30 sekunders cyklus når aldrig at åbne ventilen helt. IHC kørte 30 min. hass-ufh bruger min. 540 s. | lille |
+| ~~1~~ | ~~PWM tilpasset termomotorer~~ **Droppet på ejerens ønske:** PID og cyklustider er afprøvet i mange år og virker perfekt, så de røres ikke. | – | – |
 | 2 | **Frostsikring og sensor-fallback:** min. temperatur (IHC: 16 °C) også når et rum er slukket; "gammel" føler (ingen opdatering i X timer) → sikkert lavt output i stedet for at holde eller slukke | Sikkerhed. IHC havde det, vi har det ikke. | lille |
 | 3 | **Hus-tilstande Beboet / Ubeboet / Slukket** (+ Ferie) som i IHC, med setpunkt pr. tilstand, drevet af de eksisterende `input_select`-vælgere | Det du brugte før, og det der gør "Ubeboet 19 °C" muligt uden at røre 11 rum | mellem |
 | 4 | **Udekompensation (feed-forward):** `ke · (mål − ude)` oven på PID, med `sensor.ude_temp_temperature`; evt. varmekurve til shunten | Aflaster integralet, mindre pendling. Kræver at vi ved, hvem der styrer shunten i dag. | mellem |
@@ -47,7 +47,7 @@ Gulvtemperaturgrænse (kun vi og ScratMan-kaskaden har noget lignende), vindues-
 
 ## 5. Anbefaling
 
-Start med **1 og 2** (sikkerhed og det, der passer bedst til termomotorer). Derefter **3** (så Ubeboet/Slukket virker igen), så **4** og **5**. **7** venter, til vi har ugers data.
+**PID og cyklustider ændres ikke** (afprøvet i mange år). Alt nedenfor lægger sig oven på eller ved siden af regulatoren. Start med **2** (frostsikring og sensor-fallback), derefter **3** (så Ubeboet/Slukket virker igen), så **4** og **5**. **6** (lastfordeling) kræver, at cyklusserne forskydes, og tages kun op, hvis du ønsker det. **7** venter, til vi har ugers data.
 
 ## Kilder
 
