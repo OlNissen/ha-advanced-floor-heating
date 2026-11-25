@@ -9,7 +9,6 @@ import math
 import time
 from datetime import datetime, timezone
 
-from homeassistant.components import persistent_notification
 from homeassistant.const import STATE_ON, STATE_OFF
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
@@ -27,6 +26,7 @@ from .const import (
 )
 from .helpers import pump_signal
 from .master import get_master
+from .notify import notify
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +126,12 @@ class PumpGroupController:
 
     @property
     def pump_switches(self):
-        return _as_list(_opt(self.entry, CONF_PUMP_SWITCHES))
+        """Pumpens kontakter: de, rummene selv har valgt (pumpekontakt), plus evt. en fast liste på gruppen."""
+        out = []
+        for sw in [r._pump_switch for r in self.rooms()] + _as_list(_opt(self.entry, CONF_PUMP_SWITCHES)):
+            if sw and sw not in out:
+                out.append(sw)
+        return out
 
     @property
     def feedback(self):
@@ -149,7 +154,8 @@ class PumpGroupController:
         wanted = set(self.room_ids)
         return [
             o for o in self.hass.data.get(DOMAIN, {}).values()
-            if getattr(o, "entity_id", None) in wanted and hasattr(o, "_heater_switch")
+            if hasattr(o, "_heater_switch")
+            and (getattr(o, "entity_id", None) in wanted or getattr(o, "_pump_group", None) == self.entry_id)
         ]
 
     def valve_switches(self):
@@ -366,7 +372,5 @@ class PumpGroupController:
                 f"**Du kan skrue shuntens termostat ned med cirka 2 °C** (mildere vejr), så gulvene ikke bliver "
                 f"varmere end nødvendigt.{extra}"
             )
-        persistent_notification.async_create(
-            self.hass, message, title=f"Gulvvarme: {title}", notification_id=f"afh_shunt_{self.entry_id}"
-        )
+        notify(self.hass, f"afh_shunt_{self.entry_id}", f"Gulvvarme: {title}", message)
         self.hass.bus.async_fire(EVENT_SHUNT_ADVICE, {"group": self.name, "advice": advice, "rooms": starved})

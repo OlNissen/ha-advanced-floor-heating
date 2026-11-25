@@ -10,7 +10,6 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 
 import voluptuous as vol
-from homeassistant.components import persistent_notification
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 
@@ -21,6 +20,7 @@ from .const import (
     PARAM_BOUNDS, PARAM_MAX_FACTOR,
 )
 from .master import get_master
+from .notify import notify, dismiss
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -199,9 +199,7 @@ class ReviewManager:
     # ------------------------------------------------------------------- notifikationer
 
     def _notify(self, notification_id, title, message, reason, rooms=None):
-        persistent_notification.async_create(
-            self.hass, message, title=title, notification_id=notification_id
-        )
+        notify(self.hass, notification_id, title, message)
         self.hass.bus.async_fire(EVENT_REVIEW, {"reason": reason, "rooms": rooms or []})
 
     def _how_to(self):
@@ -356,13 +354,11 @@ class ReviewManager:
         }
         self._save()
         self.hass.bus.async_fire("advanced_floor_heating_proposal", {"entity_id": climate.entity_id, "params": ok})
-        persistent_notification.async_create(
-            self.hass,
+        notify(
+            self.hass, f"afh_proposal_{climate.entity_id}", f"Gulvvarme: forslag til {climate.name}",
             f"**{climate.name}:** {describe(climate, ok)}\n\n"
             + (f"Begrundelse: {reason}\n\n" if reason else "")
             + "Tryk **Anvend Forslag** på rummet for at bruge det, eller ignorér det. Intet er ændret endnu.",
-            title=f"Gulvvarme: forslag til {climate.name}",
-            notification_id=f"afh_proposal_{climate.entity_id}",
         )
         climate._publish()
         result["status"] = "foreslået (afventer dit ok)"
@@ -384,7 +380,7 @@ class ReviewManager:
 
     async def async_discard_proposal(self, climate):
         if self.data["proposals"].pop(climate.entity_id, None) is not None:
-            persistent_notification.async_dismiss(self.hass, f"afh_proposal_{climate.entity_id}")
+            dismiss(self.hass, f"afh_proposal_{climate.entity_id}")
             self._save()
             climate._publish()
 
@@ -400,7 +396,7 @@ class ReviewManager:
         self.data["proposals"].pop(climate.entity_id, None)
         self._save()
         _LOGGER.info("%s: indstillinger ændret (%s): %s", climate.name, source, describe(climate, params))
-        persistent_notification.async_dismiss(self.hass, f"afh_proposal_{climate.entity_id}")
+        dismiss(self.hass, f"afh_proposal_{climate.entity_id}")
         await climate.async_apply_params(params)
 
 

@@ -12,6 +12,7 @@ from .const import (
     SOURCE_MEASURED, SOURCE_FORECAST, SOURCE_BOTH, OUTDOOR_SOURCES, DEFAULT_OUTDOOR_SOURCE,
     FORECAST_REFRESH_MINUTES, FORECAST_MAX_AGE_HOURS, SOLAR_FULL_ELEVATION,
     CONF_REVIEW_DAYS, DEFAULT_REVIEW_DAYS, CONF_ALLOW_AI_CHANGES,
+    CONF_NOTIFY_IN_HA, CONF_NOTIFY_MOBILES,
 )
 from .helpers import MASTER_SIGNAL, ALARM_SIGNAL, MASTER_VALUES_SIGNAL
 
@@ -119,6 +120,24 @@ class MasterHub:
     @property
     def weather_entity(self):
         return self._option(CONF_WEATHER_ENTITY)
+
+    def _raw(self, key, default=None):
+        opts = self.entry.options
+        if key in opts:
+            return opts[key]
+        return self.entry.data.get(key, default)
+
+    @property
+    def notify_in_ha(self):
+        value = self._raw(CONF_NOTIFY_IN_HA, True)
+        return True if value is None else bool(value)
+
+    @property
+    def notify_mobiles(self):
+        value = self._raw(CONF_NOTIFY_MOBILES, [])
+        if not value:
+            return []
+        return [value] if isinstance(value, str) else [v for v in value if v]
 
     @property
     def review_days(self):

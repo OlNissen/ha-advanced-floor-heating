@@ -13,7 +13,25 @@ from .const import (
     CONF_REVIEW_DAYS, DEFAULT_REVIEW_DAYS, CONF_ALLOW_AI_CHANGES,
     TYPE_PUMP, CONF_GROUP_ROOMS, CONF_PUMP_SWITCHES, CONF_PUMP_FEEDBACK, CONF_SHUNT_SENSOR,
     CONF_PUMP_STOP_MINUTES, DEFAULT_PUMP_STOP_MINUTES, CONF_PUMP_MOTION_DAYS, DEFAULT_PUMP_MOTION_DAYS,
+    CONF_NOTIFY_IN_HA, CONF_NOTIFY_MOBILES, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
 )
+
+def _group_options(hass):
+    """Pumpegrupperne som valgmuligheder (værdi = entry_id)."""
+    return [
+        {"value": e.entry_id, "label": e.title}
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.data.get(CONF_ENTRY_TYPE) == TYPE_PUMP
+    ]
+
+
+def _guess_pump_switch(hass, heater_switch):
+    """Rummets pumpekontakt hedder ofte som telestaten, bare med _pumpestyring (switch.stue_telestat -> ..._pumpestyring)."""
+    if not heater_switch or not heater_switch.endswith("_telestat"):
+        return None
+    guess = heater_switch[: -len("_telestat")] + "_pumpestyring"
+    return guess if hass.states.get(guess) is not None else None
+
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Advanced Floor Heating."""
@@ -57,12 +75,6 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="pump_group",
             data_schema=vol.Schema({
                 vol.Required("name", default="Teknikrum"): str,
-                vol.Required(CONF_GROUP_ROOMS): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="climate", integration="advanced_floor_heating", multiple=True)
-                ),
-                vol.Required(CONF_PUMP_SWITCHES): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="switch", multiple=True)
-                ),
                 vol.Optional(CONF_PUMP_FEEDBACK): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor")
                 ),
@@ -95,6 +107,14 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_WINDOW_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
+                vol.Optional(CONF_PUMP_GROUP): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=_group_options(self.hass), mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                ),
+                vol.Optional(CONF_ROOM_PUMP_SWITCH): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="switch")
+                ),
             }),
         )
 
@@ -125,12 +145,20 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
         if isinstance(linked, str):
             linked = [linked]
         linked = linked or []
+        pump_group = options.get(CONF_PUMP_GROUP, self.config_entry.data.get(CONF_PUMP_GROUP))
+        pump_switch = options.get(CONF_ROOM_PUMP_SWITCH, self.config_entry.data.get(CONF_ROOM_PUMP_SWITCH))
+        if not pump_switch:
+            pump_switch = _guess_pump_switch(
+                self.hass, options.get("heater_switch", self.config_entry.data.get("heater_switch"))
+            )
 
         if user_input is not None:
             data = dict(user_input)
             # Store the key even when cleared, so options override the old value
             data.setdefault(CONF_WINDOW_SENSOR, [])
             data.setdefault(CONF_LINKED_ROOMS, [])
+            data.setdefault(CONF_PUMP_GROUP, None)
+            data.setdefault(CONF_ROOM_PUMP_SWITCH, None)
             return self.async_create_entry(title="", data=data)
         
         window_key = (
@@ -143,6 +171,13 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 window_key: selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
+                vol.Optional(CONF_PUMP_GROUP, description={"suggested_value": pump_group}): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=_group_options(self.hass), mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                ),
+                vol.Optional(CONF_ROOM_PUMP_SWITCH, description={"suggested_value": pump_switch}):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="switch")),
                 vol.Optional(CONF_LINKED_ROOMS, description={"suggested_value": linked}): selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         domain="climate", integration="advanced_floor_heating", multiple=True
@@ -213,11 +248,22 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
         def current(key):
             return options.get(key, data_.get(key))
 
+        chosen_mobiles = current(CONF_NOTIFY_MOBILES) or []
+        if isinstance(chosen_mobiles, str):
+            chosen_mobiles = [chosen_mobiles]
+        found = sorted(
+            s for s in self.hass.services.async_services().get("notify", {}) if s.startswith("mobile_app_")
+        )
+        mobile_options = [
+            {"value": s, "label": s.replace("mobile_app_", "")} for s in dict.fromkeys(found + list(chosen_mobiles))
+        ]
+
         if user_input is not None:
             data = dict(user_input)
             # Gem nøglerne også når de er ryddet, så options overstyrer de gamle værdier
             data.setdefault(CONF_OUTDOOR_SENSOR, None)
             data.setdefault(CONF_WEATHER_ENTITY, None)
+            data.setdefault(CONF_NOTIFY_MOBILES, [])
             return self.async_create_entry(title="", data=data)
         return self.async_show_form(
             step_id="master_options",
@@ -244,6 +290,17 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_ALLOW_AI_CHANGES,
                     default=bool(current(CONF_ALLOW_AI_CHANGES)),
                 ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_NOTIFY_IN_HA,
+                    default=True if current(CONF_NOTIFY_IN_HA) is None else bool(current(CONF_NOTIFY_IN_HA)),
+                ): selector.BooleanSelector(),
+                vol.Optional(
+                    CONF_NOTIFY_MOBILES, description={"suggested_value": chosen_mobiles}
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=mobile_options, multiple=True, mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                ),
             }),
         )
 
@@ -264,16 +321,20 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
             data = dict(user_input)
             for key in (CONF_PUMP_FEEDBACK, CONF_SHUNT_SENSOR):
                 data.setdefault(key, None)
+            for key in (CONF_GROUP_ROOMS, CONF_PUMP_SWITCHES):
+                data.setdefault(key, [])
             return self.async_create_entry(title="", data=data)
         return self.async_show_form(
             step_id="pump_options",
             data_schema=vol.Schema({
-                vol.Required(CONF_GROUP_ROOMS, default=as_list(current(CONF_GROUP_ROOMS))): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="climate", integration="advanced_floor_heating", multiple=True)
-                ),
-                vol.Required(CONF_PUMP_SWITCHES, default=as_list(current(CONF_PUMP_SWITCHES))): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="switch", multiple=True)
-                ),
+                vol.Optional(CONF_GROUP_ROOMS, description={"suggested_value": as_list(current(CONF_GROUP_ROOMS))}):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="climate", integration="advanced_floor_heating", multiple=True
+                        )
+                    ),
+                vol.Optional(CONF_PUMP_SWITCHES, description={"suggested_value": as_list(current(CONF_PUMP_SWITCHES))}):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="switch", multiple=True)),
                 vol.Optional(CONF_PUMP_FEEDBACK, description={"suggested_value": current(CONF_PUMP_FEEDBACK)}):
                     selector.EntitySelector(selector.EntitySelectorConfig(domain="binary_sensor")),
                 vol.Optional(CONF_SHUNT_SENSOR, description={"suggested_value": current(CONF_SHUNT_SENSOR)}):

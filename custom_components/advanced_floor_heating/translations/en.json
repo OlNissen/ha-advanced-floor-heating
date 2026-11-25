@@ -18,7 +18,9 @@
           "room_sensor": "Room temperature sensor",
           "floor_sensor": "Floor temperature sensor",
           "heater_switch": "Heater switch (thermal actuator/relay)",
-          "window_sensor": "Window and door contacts (optional)"
+          "window_sensor": "Window and door contacts (optional)",
+          "pump_group": "Pump group (optional)",
+          "pump_switch": "Pump switch for the room (optional)"
         }
       },
       "master": {
@@ -32,7 +34,7 @@
       },
       "pump_group": {
         "title": "Pump group",
-        "description": "Rooms that share a pump and shunt. Pump control starts the pump when a valve opens and stops it after a run-on delay. Shunt advice tells you when to turn the shunt thermostat up or down.",
+        "description": "Name, pump feedback and the shunt sensor. Rooms choose their own group in their settings (Pump group), so you never pick the same thing twice.",
         "data": {
           "name": "Name (e.g. Technical room or Basement)",
           "group_rooms": "Rooms in the group",
@@ -64,23 +66,27 @@
           "outdoor_ke": "Outdoor compensation ke (% output per degree between target and outdoor, 0 = off)",
           "solar_gain": "Solar gain ks (% output subtracted at full sun, 0 = off)",
           "linked_rooms": "Linked rooms (same air space, optional): room temperatures are averaged and the room setpoint follows. Set it in both rooms",
-          "link_weight": "Weight in the shared average (e.g. room m², only used with linked rooms)"
+          "link_weight": "Weight in the shared average (e.g. room m², only used with linked rooms)",
+          "pump_group": "Pump group (which pump/shunt the room belongs to)",
+          "pump_switch": "Pump switch for the room (IHC pump control; suggested from the actuator name)"
         }
       },
       "master_options": {
         "title": "Master",
-        "description": "Outdoor sensor and/or weather entity for outdoor compensation (ke) and solar gain (ks). Which source the rooms use is chosen with the Master's 'Ude Kilde'.",
+        "description": "Outdoor sensor and/or weather entity for outdoor compensation (ke) and solar gain (ks). Which source the rooms use is chosen with the Master's 'Ude Kilde'. Notifications (review, hunting rooms, proposals, alarms and shunt advice) are sent as chosen at the bottom. The 'Send Testbesked' button tries it out.",
         "data": {
           "outdoor_sensor": "Outdoor temperature sensor (optional)",
           "weather_entity": "Weather entity for forecast and sun (optional)",
           "forecast_hours": "Forecast: average over this many hours ahead",
           "review_days": "Suggest the first review of the settings after this many days of running",
-          "allow_ai_changes": "Allow an AI to change settings directly (default: no - it can only propose, and you press Apply Proposal)"
+          "allow_ai_changes": "Allow an AI to change settings directly (default: no - it can only propose, and you press Apply Proposal)",
+          "notify_in_ha": "Show messages as a notification in HA",
+          "notify_mobiles": "Also push messages to these phones (optional)"
         }
       },
       "pump_options": {
         "title": "Pump group",
-        "description": "The pump starts on heat demand and stops after the run-on delay. If it has been idle for the set number of days it is exercised at 03:00 for 5 minutes.",
+        "description": "Rooms choose the group in their own settings. The pump starts on heat demand and stops after the run-on delay. If idle for the set number of days it is exercised at 03:00 for 5 minutes. The room and switch fields are only for special cases.",
         "data": {
           "group_rooms": "Rooms in the group",
           "pump_switches": "Switches that start the pump",

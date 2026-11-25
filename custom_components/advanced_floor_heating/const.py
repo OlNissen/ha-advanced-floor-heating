@@ -124,3 +124,9 @@ ADVICE_SHORT = 0.3                          # grader under maal
 ADVICE_FLOOR_HEADROOM = 3.0                 # gulvet maa hoejst vaere saa mange grader over sit maal
 ADVICE_LOW_SHARE = 0.7
 EVENT_SHUNT_ADVICE = "advanced_floor_heating_shunt_advice"
+
+# ---------------------------------------------------------------- Notifikationer (paa Masteren) og pumpegruppe pr. rum
+CONF_NOTIFY_IN_HA = "notify_in_ha"          # vis beskeder som HA-notifikation (standard ja)
+CONF_NOTIFY_MOBILES = "notify_mobiles"      # notify-services (mobile_app_...) der faar en push
+CONF_PUMP_GROUP = "pump_group"              # paa et rum: hvilken pumpegruppe (entry_id) det hoerer til
+CONF_ROOM_PUMP_SWITCH = "pump_switch"       # paa et rum: kontakten der taender pumpen for dette rum

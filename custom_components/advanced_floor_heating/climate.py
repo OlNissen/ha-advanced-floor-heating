@@ -20,12 +20,13 @@ from .const import (
     MODE_OCCUPIED, MODE_UNOCCUPIED, MODE_FROST, MODE_OFF, MODE_FOLLOW, ROOM_MODE_OPTIONS,
     DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP,
     CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS, CONF_SOLAR_GAIN,
-    CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT,
+    CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES,
 )
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
 from .master import get_master
 from .review import RoomMetrics
+from .notify import notify, dismiss
 from .const import REVIEW_KEY
 from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 
@@ -127,6 +128,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         # Koblede rum (samme luftrum, hver sin shunt/gulv): fælles rumtemperatur som vægtet middel
         self._linked_rooms = _as_list(_option(entry, CONF_LINKED_ROOMS))
         self._link_weight = float(_option(entry, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT) or DEFAULT_LINK_WEIGHT)
+
+        # Pumpe: hvilken gruppe rummet hører til, og kontakten der tænder pumpen for rummet
+        self._pump_group = _option(entry, CONF_PUMP_GROUP) or None
+        self._pump_switch = _option(entry, CONF_ROOM_PUMP_SWITCH) or None
 
         # Målinger til gennemgang (udsving m.m.)
         self._metrics = RoomMetrics()
@@ -481,6 +486,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "mode_override": self._mode_override,
             "effective_room_target": round(self.effective_room_target, 2),
             "effective_floor_target": round(self.effective_floor_target, 2),
+            "pump_group": self._pump_group,
+            "pump_switch": self._pump_switch,
             "linked_rooms": self._linked_rooms,
             "link_weight": self._link_weight,
             "control_room_temperature": (
@@ -708,9 +715,18 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._full_floor0 = None
 
         if alarms != self._alarms:
+            new = [a for a in alarms if a not in self._alarms]
             self._alarms = alarms
+            key = getattr(self, "entity_id", None) or self.name
             if alarms:
                 _LOGGER.warning("%s: alarm: %s", self.name, "; ".join(alarms))
+                if new:
+                    notify(
+                        self.hass, f"afh_alarm_{key}", f"Gulvvarme: alarm i {self.name}",
+                        f"**{self.name}:** " + "; ".join(alarms) + ".",
+                    )
+            else:
+                dismiss(self.hass, f"afh_alarm_{key}")
             async_dispatcher_send(self.hass, ALARM_SIGNAL)
 
     def _outdoor_temp(self):

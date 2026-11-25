@@ -132,6 +132,17 @@ Sådan kobler du: **Konfigurer** på hvert af rummene → *Koblede rum* → væl
 
 Autotune bruger også den fælles rumtemperatur. De koblede rum påvirker hinanden, så tun ét rum ad gangen og sæt det andet til `Slukket` under testen (rummets *Husstilstand*).
 
+## 🔔 Notifikationer (fælles, på Masteren)
+
+Alle beskeder fra integrationen (første/ny gennemgang, rum der svinger, forslag fra en AI, alarmer og shunt-råd) sendes samme sted fra. Under Masterens *Konfigurer* vælger du:
+
+- **Vis beskeder som notifikation i HA** (standard: ja). Slå den fra, hvis du kun vil have push.
+- **Send også beskeder som push til disse mobiler.** Listen viser de mobiler, der har HA-appen (`notify.mobile_app_…`). Vælg dem, der skal have beskeden, og lad resten stå.
+
+Knappen **Send Testbesked** på Masteren afprøver det. Alarmer kommer, når de opstår (ikke igen, så længe de varer), og HA-notifikationen fjernes, når alarmen forsvinder. Push-beskeder kan ikke tilbagekaldes og viser ren tekst uden fed skrift.
+
+Uden Master sendes kun HA-notifikationer.
+
 ## 🤖 Gennemgang af indstillingerne (til dig og en AI)
 
 Regulatoren måler selv, hvordan hvert rum opfører sig, og kan give en AI-assistent (fx Claude via Assist/MCP i HA, eller en automation) et overblik, så den kan foreslå bedre indstillinger. **Intet ændres uden dit ok.**
@@ -319,16 +330,12 @@ Tun gerne ét rum ad gangen. Genstartes HA midt i en test, afbrydes den, og den 
 
 I et IHC-anlæg styres cirkulationspumpen ofte af en funktionsblok, som får et **kald fra hvert rums varmestyring** ("Udgang til pumpestyring"). Slukker du IHC's varmefunktioner, forsvinder kaldene, og pumperne står stille. En **pumpegruppe** overtager det: den samler de rum, der deler pumpe og shunt.
 
-**Tilføj:** *Tilføj integration → Advanced Floor Heating → Tilføj en pumpegruppe.* Lav én gruppe pr. pumpe/shunt (fx *Teknikrum* og *Kælder*). Du vælger:
+**Tilføj (to trin, og du vælger aldrig det samme to gange):**
 
-| Felt | Hvad |
-|---|---|
-| Rum i gruppen | Rummene (climate), der deler pumpen |
-| Kontakter der tænder pumpen | IHC's "pumpestyring"-ressourcer som `switch` (se [`ihc/telestat-switches.yaml`](ihc/telestat-switches.yaml) for princippet) |
-| Pumpens tilbagemelding *(valgfri)* | `binary_sensor`, der viser, om pumpen kører. Bruges til motion |
-| Shuntens fremløbsføler *(valgfri)* | Temperaturføler på shuntens fremløb. Bruges til visning og i beskeden |
+1. *Tilføj integration → Advanced Floor Heating → Tilføj en pumpegruppe.* Lav én gruppe pr. pumpe/shunt (fx *Teknikrum* og *Kælder*). Du angiver kun et navn og, hvis du vil, pumpens tilbagemelding (`binary_sensor`, bruges til motion) og shuntens fremløbsføler (temperaturføler, bruges til visning og i beskeden).
+2. **På hvert rum** (*Konfigurer*) vælger du *Pumpegruppe* fra en liste og *Pumpekontakt for rummet* (IHC's "pumpestyring"-ressource som `switch`, se [`ihc/telestat-switches.yaml`](ihc/telestat-switches.yaml)). Hedder rummets telestat `switch.stue_telestat`, foreslås `switch.stue_pumpestyring` automatisk.
 
-Under *Konfigurer* kan du ændre efterløbet (standard 5 min) og dage uden kørsel før motion (standard 7; 0 = fra).
+Gruppen finder selv sine rum, ventiler og pumpekontakter ud fra rummene. Flytter du et rum til en anden gruppe, følger pumpestyringen med. (Under gruppens *Konfigurer* kan man stadig angive faste lister over rum og kontakter, men det er kun til særlige tilfælde.) Samme sted kan du ændre efterløbet (standard 5 min) og dage uden kørsel før motion (standard 7; 0 = fra).
 
 **Pumpestyring:**
 
@@ -355,7 +362,9 @@ Under *Konfigurer* kan du ændre efterløbet (standard 5 min) og dage uden kørs
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+
+- Ny (1.9.0): **fælles notifikationer på Masteren** (HA og/eller push til valgte mobiler, testknap), **alarmer sendes som besked**, og **rummene vælger selv pumpegruppe og pumpekontakt**, så en pumpegruppe kun skal have et navn
 
 - Ny (1.8.0): **pumpegrupper** – pumpestyring (kald, efterløb, motion), `Ventiler åbne` og **shunt-råd** med besked om at skrue shuntens termostat op eller ned
 
