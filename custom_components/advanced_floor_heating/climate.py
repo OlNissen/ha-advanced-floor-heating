@@ -19,7 +19,7 @@ from .const import (
     PRESET_ROOM_ONLY, PRESET_FLOOR_ONLY, PRESET_BOTH_1_MET, PRESET_BOTH_BOTH_MET,
     MODE_OCCUPIED, MODE_UNOCCUPIED, MODE_FROST, MODE_OFF, MODE_FOLLOW, ROOM_MODE_OPTIONS,
     DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP,
-    CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS,
+    CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS, CONF_SOLAR_GAIN,
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES,
 )
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
@@ -118,6 +118,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         # Udekompensation (ke = 0 -> slaaet fra) og gamle foelere
         self._ke = float(_option(entry, CONF_OUTDOOR_KE, 0.0) or 0.0)
         self._stale_hours = float(_option(entry, CONF_STALE_HOURS, DEFAULT_STALE_HOURS) or 0.0)
+        self._ks = float(_option(entry, CONF_SOLAR_GAIN, 0.0) or 0.0)  # sol-fradrag (% udgang ved fuld sol)
         self._ff_out = 0.0
 
         # Alarmer og driftstid
@@ -429,6 +430,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "effective_room_target": round(self.effective_room_target, 2),
             "effective_floor_target": round(self.effective_floor_target, 2),
             "outdoor_ke": self._ke,
+            "solar_gain": self._ks,
             "pid_ff": round(self._ff_out, 2),
             "stale_hours": self._stale_hours,
             "alarms": self._alarms,
@@ -615,10 +617,14 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             async_dispatcher_send(self.hass, ALARM_SIGNAL)
 
     def _outdoor_temp(self):
+        """Ude-temperatur fra Masteren (efter dens valgte kilde: måling, prognose eller begge)."""
         hub = get_master(self.hass)
-        if hub is None or not hub.outdoor_sensor:
-            return None
-        return self._read_temp(hub.outdoor_sensor)
+        return hub.outdoor_temp() if hub is not None else None
+
+    def _solar(self):
+        """Sol 0..1 fra Masteren (solhøjde x klar himmel)."""
+        hub = get_master(self.hass)
+        return hub.solar() if hub is not None else 0.0
 
     def _add_runtime(self, seconds):
         self._roll_runtime_day()
@@ -771,11 +777,14 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         test_i_sum = self._integral_sum + i_step
         test_i_out = self._ki * test_i_sum
         # Udekompensation (valgfri): fast tillaeg efter hvor koldt det er ude
+        # og et fradrag, når solen varmer (ks). Begge er 0 som standard.
         self._ff_out = 0.0
         if self._ke > 0:
             outdoor = self._outdoor_temp()
             if outdoor is not None:
-                self._ff_out = max(0.0, self._ke * (eff_room - outdoor))
+                self._ff_out += max(0.0, self._ke * (eff_room - outdoor))
+        if self._ks > 0:
+            self._ff_out -= self._ks * self._solar()
         test_signal = self._p_out + test_i_out + self._d_out + self._ff_out
 
         if test_signal >= 100.0 and error > 0:

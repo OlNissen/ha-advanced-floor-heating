@@ -69,7 +69,8 @@ Har et rum flere vinduer og døre, så vælg dem alle – rummet regnes som åbe
 | Maks. gulvtemperatur | 32 °C | Varmen slukkes, når gulvet når denne temperatur |
 | Ventilmotion (dage) | 7 | Har ventilen ikke været åben i så mange dage, motioneres den: 3 cyklusser med 10 min åben og 10 min lukket (som i IHC-programmet), så termomotoren ikke sætter sig. 0 = slået fra. Virker også, mens rummet er slukket |
 | Føler uden opdatering (timer) | 0 (fra) | Står en føler stille i så mange timer, regnes den som *mangler* (varmen slukkes, og der kommer en alarm). Vær forsigtig: føleren skal opdatere ofte nok, ellers får du falske alarmer |
-| Udekompensation ke | 0 (fra) | Lægger `ke × (rummål − udetemp)` procent oven på PID-udgangen. Kræver, at Masteren har en udetemperatur-føler. Start lavt (0,3–1,0), og lad I-leddet tage resten |
+| Udekompensation ke | 0 (fra) | Lægger `ke × (rummål − udetemp)` procent oven på PID-udgangen. Bruger Masterens `Ude Kilde` (måling, prognose eller begge). Start lavt (0,3–1,0), og lad I-leddet tage resten |
+| Sol-fradrag ks | 0 (fra) | Trækker `ks × sol` procent fra udgangen, når solen varmer (se [Udekompensation, prognose og sol](#-udekompensation-prognose-og-sol)) |
 | Kp / Ki / Kd | 10 / 2 / 1 | PID-parametre |
 | PID-interval | 30 sek | Hvor ofte regulatoren regner |
 | PWM-cyklus | 30 sek | Længden på tænd/sluk-cyklussen. For termomotorer (telestater) er **ca. 900–1800 sek** typisk fornuftigt – 30 sek er kun en startværdi |
@@ -103,6 +104,9 @@ Ligesom i IHC kan hele huset få sin tilstand sat ét sted. **Tilføj integratio
 | `number.gulvvarme_master_ubeboet_temperatur` | Hvad et rum holder i *Ubeboet* (standard 19 °C) |
 | `number.gulvvarme_master_frost_temperatur` | Hvad et rum holder i *Frostsikker* (standard 16 °C) |
 | `binary_sensor.gulvvarme_master_alarm` | Tændt, hvis et rum har en alarm (attributten `rum` viser hvilke) |
+| `select.gulvvarme_master_ude_kilde` | Hvad udekompensationen bruger: `Måling`, `Prognose` eller `Begge` (se [Udekompensation og sol](#-udekompensation-prognose-og-sol)) |
+| `sensor.gulvvarme_master_ude_temperatur_brugt` | Den ude-temperatur rummene bruger lige nu (attributter: måling, prognose, kilde) |
+| `sensor.gulvvarme_master_sol` | Sol 0–100 % (solhøjde × klar himmel) |
 
 Hvad tilstandene gør:
 
@@ -113,6 +117,29 @@ Hvad tilstandene gør:
 Hvert rum har også en `select.<rum>_husstilstand` med `Fælles` (følger Masteren, standard) eller en af de fire tilstande. Den bruges til de rum, der ikke skal følge resten – f.eks. et værelse, der er i brug, mens huset ellers er Ubeboet. Valget kan også ændres i kortets indstillinger.
 
 Autotune kan kun køre, mens rummet er `Beboet`; skifter tilstanden undervejs, afbrydes testen. PID-parametre og cyklustider påvirkes ikke af tilstandene.
+
+## 🌦 Udekompensation, prognose og sol
+
+To valgfrie tillæg oven på PID-udgangen. Begge er **slået fra som standard** (`ke` = 0 og `ks` = 0 pr. rum), så regulatoren opfører sig som før, indtil du selv slår dem til.
+
+**Masteren** (Konfigurer) kan have en *udetemperatur-føler* og/eller en *vejr-entitet* (`weather.*`). Vejr-entiteten bruges til prognose (middeltemperatur de næste 1–12 timer, standard 4; hentes hvert 30. minut) og til skydække. Time-prognose bruges, hvis vejr-entiteten har den; ellers 2×dagligt eller dagsprognose. Er prognosen ældre end 3 timer, bruges den ikke.
+
+**`Ude Kilde`** vælger, hvad rummene regner med:
+
+| Kilde | Ude-temperatur | Skydække |
+|---|---|---|
+| `Måling` | udeføleren lige nu | vejr-entitetens nuværende skydække |
+| `Prognose` | prognosens middel over de næste timer | prognosens skydække |
+| `Begge` | middel af måling og prognose | middel af begge |
+
+Mangler den valgte kilde, er tillægget 0 (der er ingen stille omskiftning til en anden kilde, bortset fra `Begge`, som bruger det, der findes).
+
+**Pr. rum** (Konfigurer):
+
+- **`ke` (udekompensation):** lægger `ke × (rummål − ude)` procent til udgangen. Start lavt (0,3–0,5).
+- **`ks` (sol-fradrag):** trækker `ks × sol` procent fra udgangen, når solen varmer (sol = solhøjde/30° begrænset til 0–1, ganget med klar himmel). Brug det til rum mod syd. Solhøjden er den nuværende, ikke den kommende.
+
+Tillæggene er med i anti-windup, og I-leddet tilpasser sig dem. Kortets `pid_ff`-attribut viser tillægget lige nu. Hvor meget det betyder, er en gætteøvelse, indtil du har set det i nogle dage: ændr ét rum ad gangen.
 
 ## 🚨 Alarmer og driftstid
 
@@ -263,11 +290,11 @@ Løsning: gør rummenes "Pumpestyring"-ressourcer til switches i `ihc_manual_set
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.4.0
+## 🧩 Ændringer i 1.5.0 og 1.4.0
 
 - Ny: **Master** med husets tilstand (Beboet/Ubeboet/Frostsikker/Slukket), temperaturer for Ubeboet og Frostsikker, og en tilstand pr. rum, der kan overstyre
 - Ny: alarmer (føler mangler/gammel, mulig fastsiddende ventil) og `Driftstid i dag`
-- Ny: valgfri udekompensation (`ke`) og valgfri "føler uden opdatering"-grænse
+- Ny: valgfri udekompensation (`ke`) med valg af kilde (udeføler, vejrprognose eller begge) og valgfrit sol-fradrag (`ks`), og valgfri "føler uden opdatering"-grænse
 - Kortet viser husets tilstand og alarmer i den stille statuslinje, og rummets husstilstand kan vælges i indstillingerne
 - Uændret: PID-formler, PWM-cyklus og alle standardindstillinger
 

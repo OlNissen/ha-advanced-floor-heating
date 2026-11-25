@@ -25,7 +25,8 @@
         "description": "Husets tilstand sendes ud til alle rum, ligesom i IHC. Udeføleren bruges kun, hvis et rum har en udekompensation (ke) over 0.",
         "data": {
           "name": "Navn",
-          "outdoor_sensor": "Udetemperatur-føler (valgfri)"
+          "outdoor_sensor": "Udetemperatur-føler (valgfri)",
+          "weather_entity": "Vejr-entitet til prognose og sol (valgfri)"
         }
       }
     },
@@ -48,14 +49,17 @@
           "cycle_time": "Telestat Cyklustid (PWM i sekunder)",
           "valve_exercise_days": "Ventilmotion: åbn ventilen, hvis den ikke har været åben i så mange dage (0 = fra)",
           "stale_hours": "Føler uden opdatering i så mange timer tæller som mangler (0 = fra)",
-          "outdoor_ke": "Udekompensation ke (% udgang pr. grad forskel mellem mål og ude, 0 = fra)"
+          "outdoor_ke": "Udekompensation ke (% udgang pr. grad forskel mellem mål og ude, 0 = fra)",
+          "solar_gain": "Sol-fradrag ks (% udgang fratrukket ved fuld sol, 0 = fra)"
         }
       },
       "master_options": {
         "title": "Master",
-        "description": "Udeføler til udekompensation. Hvert rum vælger selv sin ke.",
+        "description": "Udeføler og/eller vejr-entitet til udekompensation (ke) og sol-fradrag (ks). Hvilken kilde rummene bruger, vælges med Masterens 'Ude Kilde'.",
         "data": {
-          "outdoor_sensor": "Udetemperatur-føler (valgfri)"
+          "outdoor_sensor": "Udetemperatur-føler (valgfri)",
+          "weather_entity": "Vejr-entitet til prognose og sol (valgfri)",
+          "forecast_hours": "Prognose: middel over så mange timer frem"
         }
       }
     }

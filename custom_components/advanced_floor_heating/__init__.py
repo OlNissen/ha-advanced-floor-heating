@@ -4,7 +4,7 @@ from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, MASTER_KEY
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS_ROOM = ["climate", "sensor", "number", "switch", "button", "select", "binary_sensor"]
-PLATFORMS_MASTER = ["select", "number", "binary_sensor"]
+PLATFORMS_MASTER = ["select", "number", "binary_sensor", "sensor"]
 
 
 def is_master(entry):
@@ -17,7 +17,10 @@ async def async_setup_entry(hass, entry):
 
     if is_master(entry):
         from .master import MasterHub
-        hass.data[DOMAIN][MASTER_KEY] = MasterHub(hass, entry)
+        hub = MasterHub(hass, entry)
+        hass.data[DOMAIN][MASTER_KEY] = hub
+        await hub.async_start()
+        entry.async_on_unload(hub.async_stop)
         platforms = PLATFORMS_MASTER
     else:
         platforms = PLATFORMS_ROOM

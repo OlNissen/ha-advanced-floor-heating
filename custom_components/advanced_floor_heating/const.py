@@ -61,3 +61,19 @@ DEFAULT_STALE_HOURS = 0
 STUCK_VALVE_MINUTES = 90      # fuld udgang saa laenge uden at gulvet stiger ...
 STUCK_VALVE_MIN_RISE = 0.5    # ... mindst saa mange grader
 SENSOR_ALARM_MINUTES = 15     # foeler maa mangle saa laenge, foer det er en alarm
+
+# ---------------------------------------------------------------- Ude-kilde, prognose og sol
+CONF_WEATHER_ENTITY = "weather_entity"     # sat paa Masteren (weather.*)
+CONF_FORECAST_HOURS = "forecast_hours"     # hvor mange timer frem prognosen midles over
+DEFAULT_FORECAST_HOURS = 4
+CONF_SOLAR_GAIN = "solar_gain"             # sat paa hvert rum: % udgang fratrukket ved fuld sol (ks)
+
+SOURCE_MEASURED = "Måling"
+SOURCE_FORECAST = "Prognose"
+SOURCE_BOTH = "Begge"
+OUTDOOR_SOURCES = [SOURCE_MEASURED, SOURCE_FORECAST, SOURCE_BOTH]
+DEFAULT_OUTDOOR_SOURCE = SOURCE_MEASURED
+
+FORECAST_REFRESH_MINUTES = 30
+FORECAST_MAX_AGE_HOURS = 3       # aeldre prognose bruges ikke
+SOLAR_FULL_ELEVATION = 30.0      # solhoejde (grader), hvor solen regnes for "fuld"

@@ -5,14 +5,14 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     DOMAIN, MASTER_KEY, HOUSE_MODES, ROOM_MODE_OPTIONS, MODE_OCCUPIED,
-    CONF_ENTRY_TYPE, TYPE_MASTER,
+    CONF_ENTRY_TYPE, TYPE_MASTER, OUTDOOR_SOURCES, DEFAULT_OUTDOOR_SOURCE,
 )
-from .helpers import UpdateListenerMixin, device_info, MASTER_SIGNAL
+from .helpers import UpdateListenerMixin, device_info, MASTER_SIGNAL, MASTER_VALUES_SIGNAL
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     if entry.data.get(CONF_ENTRY_TYPE) == TYPE_MASTER:
-        async_add_entities([MasterModeSelect(entry)])
+        async_add_entities([MasterModeSelect(entry), OutdoorSourceSelect(entry)])
     else:
         async_add_entities([RoomModeSelect(entry)])
 
@@ -53,6 +53,41 @@ class MasterModeSelect(RestoreEntity, SelectEntity):
     async def async_select_option(self, option):
         if self._hub:
             self._hub.set_mode(option)
+        self.async_write_ha_state()
+
+
+class OutdoorSourceSelect(RestoreEntity, SelectEntity):
+    """Hvad udekompensationen bruger: udeføler (Måling), vejrprognose eller begge (middel)."""
+
+    _attr_should_poll = False
+    _attr_icon = "mdi:weather-partly-cloudy"
+    _attr_options = OUTDOOR_SOURCES
+
+    def __init__(self, entry):
+        self._attr_name = f"{entry.data['name']} Ude Kilde"
+        self._attr_unique_id = f"{entry.entry_id}_outdoor_source"
+        self._attr_device_info = device_info(entry)
+
+    @property
+    def _hub(self):
+        return self.hass.data[DOMAIN].get(MASTER_KEY)
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state in OUTDOOR_SOURCES and self._hub:
+            self._hub.set_source(last.state, notify=False)
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, MASTER_VALUES_SIGNAL, self.async_write_ha_state)
+        )
+
+    @property
+    def current_option(self):
+        return self._hub.source if self._hub else DEFAULT_OUTDOOR_SOURCE
+
+    async def async_select_option(self, option):
+        if self._hub:
+            self._hub.set_source(option)
         self.async_write_ha_state()
 
 

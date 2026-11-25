@@ -25,7 +25,8 @@
         "description": "The house mode is sent to all rooms, like in IHC. The outdoor sensor is only used if a room has outdoor compensation (ke) above 0.",
         "data": {
           "name": "Name",
-          "outdoor_sensor": "Outdoor temperature sensor (optional)"
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "weather_entity": "Weather entity for forecast and sun (optional)"
         }
       }
     },
@@ -48,14 +49,17 @@
           "cycle_time": "PWM cycle (seconds)",
           "valve_exercise_days": "Valve exercise: open the valve if it has not been open for this many days (0 = off)",
           "stale_hours": "A sensor without updates for this many hours counts as missing (0 = off)",
-          "outdoor_ke": "Outdoor compensation ke (% output per degree between target and outdoor, 0 = off)"
+          "outdoor_ke": "Outdoor compensation ke (% output per degree between target and outdoor, 0 = off)",
+          "solar_gain": "Solar gain ks (% output subtracted at full sun, 0 = off)"
         }
       },
       "master_options": {
         "title": "Master",
-        "description": "Outdoor sensor for outdoor compensation. Each room picks its own ke.",
+        "description": "Outdoor sensor and/or weather entity for outdoor compensation (ke) and solar gain (ks). Which source the rooms use is chosen with the Master's 'Ude Kilde'.",
         "data": {
-          "outdoor_sensor": "Outdoor temperature sensor (optional)"
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "weather_entity": "Weather entity for forecast and sun (optional)",
+          "forecast_hours": "Forecast: average over this many hours ahead"
         }
       }
     }

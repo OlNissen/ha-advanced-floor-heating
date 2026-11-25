@@ -8,6 +8,7 @@ from .const import (
     CONF_VALVE_EXERCISE_DAYS, DEFAULT_VALVE_EXERCISE_DAYS,
     CONF_ENTRY_TYPE, TYPE_ROOM, TYPE_MASTER, DEFAULT_MASTER_NAME,
     CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS,
+    CONF_WEATHER_ENTITY, CONF_FORECAST_HOURS, DEFAULT_FORECAST_HOURS, CONF_SOLAR_GAIN,
 )
 
 class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -25,8 +26,9 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="master_exists")
         if user_input is not None:
             data = {"name": user_input["name"], CONF_ENTRY_TYPE: TYPE_MASTER}
-            if user_input.get(CONF_OUTDOOR_SENSOR):
-                data[CONF_OUTDOOR_SENSOR] = user_input[CONF_OUTDOOR_SENSOR]
+            for key in (CONF_OUTDOOR_SENSOR, CONF_WEATHER_ENTITY):
+                if user_input.get(key):
+                    data[key] = user_input[key]
             return self.async_create_entry(title=user_input["name"], data=data)
         return self.async_show_form(
             step_id="master",
@@ -34,6 +36,9 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("name", default=DEFAULT_MASTER_NAME): str,
                 vol.Optional(CONF_OUTDOOR_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                ),
+                vol.Optional(CONF_WEATHER_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="weather")
                 ),
             }),
         )
@@ -129,6 +134,12 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=10, step=0.05)
                 ),
+                vol.Required(
+                    CONF_SOLAR_GAIN,
+                    default=float(options.get(CONF_SOLAR_GAIN, 0.0)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=100, step=1)
+                ),
                 vol.Required("kp", default=float(options.get("kp", 10.0))): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=1000, step=0.1)
                 ),
@@ -148,19 +159,33 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_master_options(self, user_input=None):
-        """Masterens indstillinger: udeføler til udekompensation."""
+        """Masterens indstillinger: udeføler, vejr-entitet (prognose og sol) og prognosetimer."""
         options = self.config_entry.options
-        current = options.get(CONF_OUTDOOR_SENSOR, self.config_entry.data.get(CONF_OUTDOOR_SENSOR))
+        data_ = self.config_entry.data
+
+        def current(key):
+            return options.get(key, data_.get(key))
+
         if user_input is not None:
             data = dict(user_input)
+            # Gem nøglerne også når de er ryddet, så options overstyrer de gamle værdier
             data.setdefault(CONF_OUTDOOR_SENSOR, None)
+            data.setdefault(CONF_WEATHER_ENTITY, None)
             return self.async_create_entry(title="", data=data)
-        key = vol.Optional(CONF_OUTDOOR_SENSOR, description={"suggested_value": current})
         return self.async_show_form(
             step_id="master_options",
             data_schema=vol.Schema({
-                key: selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                vol.Optional(CONF_OUTDOOR_SENSOR, description={"suggested_value": current(CONF_OUTDOOR_SENSOR)}):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                    ),
+                vol.Optional(CONF_WEATHER_ENTITY, description={"suggested_value": current(CONF_WEATHER_ENTITY)}):
+                    selector.EntitySelector(selector.EntitySelectorConfig(domain="weather")),
+                vol.Required(
+                    CONF_FORECAST_HOURS,
+                    default=float(current(CONF_FORECAST_HOURS) or DEFAULT_FORECAST_HOURS),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=1, max=12, step=1)
                 ),
             }),
         )

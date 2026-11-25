@@ -9,6 +9,7 @@ from .const import DOMAIN
 # Signaler: Masteren skifter tilstand / et rums alarmer aendrer sig
 MASTER_SIGNAL = f"{DOMAIN}_master_update"
 ALARM_SIGNAL = f"{DOMAIN}_alarm_update"
+MASTER_VALUES_SIGNAL = f"{DOMAIN}_master_values_update"  # ude-kilde/prognose/sol aendret
 
 
 def update_signal(entry_id: str) -> str:
