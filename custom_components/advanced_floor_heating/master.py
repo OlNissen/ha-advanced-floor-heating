@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_time_interval, async_call_later
 
 from .const import (
     DOMAIN, MASTER_KEY, MODE_OCCUPIED, HOUSE_MODES,
@@ -101,6 +101,8 @@ class MasterHub:
         self.forecast_at = None     # datetime (UTC) for sidste vellykkede hentning
         self.forecast_type = None   # hourly / twice_daily / daily
         self._unsub = None
+        self._retry_unsub = None
+        self._retries = 0
 
     # ---------------------------------------------------------------- indstillinger
 
@@ -185,6 +187,21 @@ class MasterHub:
         if self._unsub:
             self._unsub()
             self._unsub = None
+        if self._retry_unsub:
+            self._retry_unsub()
+            self._retry_unsub = None
+
+    def _schedule_retry(self):
+        """Vejr-entiteten er ofte ikke klar lige efter en genstart: prøv igen om 2 minutter (højst 6 gange)."""
+        if self._retries >= 6 or self._retry_unsub is not None:
+            return
+        self._retries += 1
+
+        async def _retry(_now=None):
+            self._retry_unsub = None
+            await self.async_refresh_forecast()
+
+        self._retry_unsub = async_call_later(self.hass, 120, _retry)
 
     async def async_refresh_forecast(self, _now=None):
         entity = self.weather_entity
@@ -206,11 +223,14 @@ class MasterHub:
                 break
         if not items:
             _LOGGER.warning("Ingen prognose fra %s - bruger den ikke", entity)
+            self._schedule_retry()
             return
         now = datetime.now(timezone.utc)
         temp, cloud = parse_forecast(items, now, self.forecast_hours)
         if temp is None:
+            self._schedule_retry()
             return
+        self._retries = 0
         self.forecast_temp, self.forecast_cloud = temp, cloud
         self.forecast_at = now
         self.forecast_type = used
