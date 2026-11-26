@@ -70,7 +70,8 @@
           "pump_group": "Pump group (which pump/shunt the room belongs to)",
           "pump_switch": "Pump switch for the room (IHC pump control; suggested from the actuator name)",
           "summer_stop": "Summer stop also applies to this room (the limit is set on the Master)",
-          "humidity_sensor": "Humidity sensor for mould risk warnings (optional, needs an outdoor temperature on the Master)"
+          "humidity_sensor": "Humidity sensor for mould risk warnings (optional, needs an outdoor temperature on the Master)",
+          "backup_room_sensor": "Backup room sensor (optional): takes over if the room sensor drops out"
         }
       },
       "master_options": {

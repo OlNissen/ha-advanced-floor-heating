@@ -70,7 +70,8 @@
           "pump_group": "Pumpegruppe (hvilken pumpe/shunt rummet hører til)",
           "pump_switch": "Pumpekontakt for rummet (IHC pumpestyring; foreslås ud fra telestaten)",
           "summer_stop": "Sommerstop gælder også dette rum (grænsen sættes på Masteren)",
-          "humidity_sensor": "Fugtføler til advarsel om skimmelrisiko (valgfri, kræver udetemperatur på Masteren)"
+          "humidity_sensor": "Fugtføler til advarsel om skimmelrisiko (valgfri, kræver udetemperatur på Masteren)",
+          "backup_room_sensor": "Reserve-rumføler (valgfri): tager over, hvis rumføleren falder ud"
         }
       },
       "master_options": {

@@ -296,7 +296,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       const s = hass.states[sensorId];
       return !s || !isFinite(parseFloat(s.state)) || value === 0;
     };
-    const topMissing = !showTarget && sensorMissing(attr.room_sensor, attr.room_temperature);
+    const topMissing = !showTarget && !attr.using_backup && sensorMissing(attr.room_sensor, attr.room_temperature);
     const bottomMissing = !showTarget && sensorMissing(attr.floor_sensor, attr.floor_temperature);
     const fmtTemp = (value, missing) => missing ? '–°' : `${value.toFixed(1)}°`;
     let text_top = "RUM";
@@ -375,6 +375,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       const eff = num(attr.effective_room_target).toFixed(0);
       mode = `${house} ${eff}°` + (mode ? ` · ${mode.charAt(0).toLowerCase()}${mode.slice(1)}` : '');
     }
+    if (attr.using_backup) mode = 'Reserveføler i brug' + (mode ? ` · ${mode.charAt(0).toLowerCase()}${mode.slice(1)}` : '');
     // Alarm: stille advarsel i samme linje
     const alarmText = (attr.alarm && Array.isArray(attr.alarms) && attr.alarms.length) ? `⚠ ${attr.alarms[0]}` : '';
     if (alarmText) mode = alarmText;

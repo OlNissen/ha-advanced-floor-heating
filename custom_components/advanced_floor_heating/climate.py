@@ -23,10 +23,10 @@ from .const import (
     CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES, SUPPLY_MARGIN,
     VERIFY_DELAY_SECONDS, VERIFY_RETRIES, CONF_SUMMER_APPLIES, STATUS_SUMMER,
-    CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY, FLOOR_LIMIT_MARGIN, STATUS_FLOOR_LIMIT,
+    CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY, FLOOR_LIMIT_MARGIN, STATUS_FLOOR_LIMIT, CONF_BACKUP_SENSOR,
 )
 from homeassistant.helpers.storage import Store
-from .health import find_battery_entities, battery_low, surface_humidity, MoldWatch
+from .health import find_battery_entities, find_sibling_temperature, battery_low, surface_humidity, MoldWatch
 from .thermal import ThermalModel
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
 from .master import get_master
@@ -166,6 +166,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         summer = _option(entry, CONF_SUMMER_APPLIES, True)
         self._summer_applies = True if summer is None else bool(summer)
         self._humidity_sensor = _option(entry, CONF_HUMIDITY_SENSOR) or None
+        self._humidity_temp_sensor = None   # temperaturen på fugtfølerens egen enhed
+        self._humidity_temp_scanned = None
+        # Reserve-rumføler (giver kun mening, når rummet har en rumføler)
+        self._backup_sensor = (_option(entry, CONF_BACKUP_SENSOR) or None) if self._room_sensor else None
         self._mold = MoldWatch()
         self._thermal = ThermalModel()
         self._thermal_source = None    # "rum" eller "gulv": hvad modellen er lært på
@@ -267,17 +271,31 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             and hasattr(obj, "_room_sensor")
         ]
 
+    def _own_room_temp(self):
+        """Rummets egen temperatur: rumføleren, ellers reserveføleren."""
+        value = self._read_temp(self._room_sensor)
+        if value is None and self._backup_sensor:
+            value = self._read_temp(self._backup_sensor)
+        return value
+
+    @property
+    def using_backup(self):
+        return bool(
+            self._backup_sensor and self._read_temp(self._room_sensor) is None
+            and self._read_temp(self._backup_sensor) is not None
+        )
+
     def _control_room_temp(self):
         """Rumtemperaturen regulatoren bruger: eget rum, eller vægtet middel med de koblede rum.
 
         Mangler en føler, bruges de øvrige. None hvis ingen føler er til rådighed.
         """
         pairs = []
-        own = self._read_temp(self._room_sensor)
+        own = self._own_room_temp()
         if own is not None:
             pairs.append((self._link_weight, own))
         for other in self._linked_entities():
-            value = other._read_temp(other._room_sensor)
+            value = other._own_room_temp()
             if value is not None:
                 pairs.append((other._link_weight, value))
         if not pairs:
@@ -440,11 +458,21 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         except (AttributeError, TypeError, ValueError):
             return None
 
+    def _mold_temp(self):
+        """Relativ fugtighed hører til den temperatur, den er målt ved: brug fugtfølerens egen, hvis den har en."""
+        now = time.monotonic()
+        if self._humidity_temp_scanned is None or now - self._humidity_temp_scanned >= 3600:
+            self._humidity_temp_scanned = now
+            self._humidity_temp_sensor = find_sibling_temperature(self.hass, self._humidity_sensor)
+        if self._humidity_temp_sensor:
+            return self._read_temp(self._humidity_temp_sensor)
+        return self._own_room_temp()
+
     def _update_mold(self):
         if not self._humidity_sensor:
             return
         humidity = self._read_humidity()
-        surface = surface_humidity(self._read_temp(self._room_sensor), humidity, self._outdoor_temp())
+        surface = surface_humidity(self._mold_temp(), humidity, self._outdoor_temp())
         change = self._mold.update(surface, time.monotonic())
         key = getattr(self, "entity_id", None) or self.name
         if change == "start":
@@ -578,7 +606,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
     @property
     def extra_state_attributes(self):
         """Expose internal PID data for the frontend card."""
-        curr_room = self._read_temp(self._room_sensor)
+        curr_room = self._own_room_temp()
         curr_floor = self._read_temp(self._floor_sensor)
 
         return {
@@ -594,6 +622,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             # Bruges af Lovelace-kortet til at vise historik (graf)
             "room_sensor": self._room_sensor,
             "has_room_sensor": self._room_sensor is not None,
+            "backup_room_sensor": self._backup_sensor,
+            "using_backup": self.using_backup,
             "floor_sensor": self._floor_sensor,
             "heater_switch": self._heater_switch,
             "window_open": self.window_open,
@@ -841,7 +871,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             else:
                 since = self._sensor_bad_since.setdefault(entity, now)
                 if now - since >= SENSOR_ALARM_MINUTES * 60:
-                    alarms.append(f"{label} {problem}")
+                    note = " (reserven styrer)" if entity == self._room_sensor and self.using_backup else ""
+                    alarms.append(f"{label} {problem}{note}")
 
         # Telestaten: væk i en periode, eller følger ikke kommandoen
         switch = self.hass.states.get(self._heater_switch)
@@ -911,10 +942,12 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._battery_scanned = now
             self._battery_entities = {
                 sensor: find_battery_entities(self.hass, sensor)
-                for sensor in (self._room_sensor, self._floor_sensor) if sensor
+                for sensor in (self._room_sensor, self._floor_sensor, self._backup_sensor, self._humidity_sensor)
+                if sensor
             }
         alarms, seen = [], set()
-        for label, sensor in (("rumføler", self._room_sensor), ("gulvføler", self._floor_sensor)):
+        for label, sensor in (("rumføler", self._room_sensor), ("gulvføler", self._floor_sensor),
+                              ("reserveføler", self._backup_sensor), ("fugtføler", self._humidity_sensor)):
             for battery in self._battery_entities.get(sensor, []):
                 if battery in seen:
                     continue
@@ -1203,8 +1236,9 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
     @property
     def native_current_temperature(self):
-        sensor_id = self._floor_sensor if self._attr_preset_mode == PRESET_FLOOR_ONLY else self._room_sensor
-        return self._read_temp(sensor_id)
+        if self._attr_preset_mode == PRESET_FLOOR_ONLY:
+            return self._read_temp(self._floor_sensor)
+        return self._own_room_temp()
 
     @property
     def native_target_temperature(self):

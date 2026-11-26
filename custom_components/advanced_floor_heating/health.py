@@ -11,6 +11,16 @@ from .const import (
 
 def find_battery_entities(hass, entity_id):
     """Batteri-entiteter på samme enhed som `entity_id` (tom liste, hvis der ingen er)."""
+    return _siblings(hass, entity_id, "battery", ("sensor", "binary_sensor"))
+
+
+def find_sibling_temperature(hass, entity_id):
+    """Temperaturføleren på samme enhed som `entity_id` (fx en fugtføler), ellers None."""
+    found = _siblings(hass, entity_id, "temperature", ("sensor",))
+    return found[0] if found else None
+
+
+def _siblings(hass, entity_id, wanted_class, domains):
     try:
         from homeassistant.helpers import entity_registry as er
     except ImportError:
@@ -22,7 +32,7 @@ def find_battery_entities(hass, entity_id):
     found = []
     for other in er.async_entries_for_device(registry, entry.device_id):
         device_class = other.device_class or other.original_device_class
-        if device_class == "battery" and other.entity_id.split(".")[0] in ("sensor", "binary_sensor"):
+        if device_class == wanted_class and other.entity_id.split(".")[0] in domains:
             found.append(other.entity_id)
     return found
 

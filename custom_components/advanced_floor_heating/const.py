@@ -95,6 +95,9 @@ THERMAL_MIN_IDLE = 8                # vinduer med ventilen mest lukket
 THERMAL_FALLBACK_RATE = 0.25        # °C pr. time, indtil modellen er laert
 THERMAL_SAVE_DELAY = 600
 
+# Reserve-rumfoeler: tager over, naar den almindelige rumfoeler mangler
+CONF_BACKUP_SENSOR = "backup_room_sensor"
+
 # Skimmelrisiko (kraever en fugtfoeler valgt paa rummet)
 CONF_HUMIDITY_SENSOR = "humidity_sensor"
 MOLD_FRSI = 0.7               # DIN 4108-2: temperaturfaktor for den koldeste vaeg

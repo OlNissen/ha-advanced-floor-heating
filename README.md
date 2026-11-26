@@ -365,6 +365,10 @@ Rummets alarm (`binary_sensor.<rum>_alarm`, samlet på Masterens alarm) tændes 
 
 Når alle rummets alarmer er væk, erstattes beskeden af **"løst"** (også som push, hvis du har valgt mobiler).
 
+## 🔁 Reserve-rumføler
+
+Har et rum to temperaturfølere (fx en IHC-føler og en Zigbee-føler), så vælg den ene som **Reserve-rumføler** under rummets *Konfigurer*. Rumføleren styrer som altid. Mangler den (eller bliver den "gammel"), tager reserven straks over, og rummet regulerer videre. Attributten `using_backup` og kortet viser det, og efter 15 minutter kommer alarmen `Rumføler mangler (reserven styrer)`. Batterialarmen dækker også reserveføleren og fugtføleren. Har fugtføleren en temperaturmåling på samme enhed, bruges den i skimmelberegningen.
+
 ## ☀️ Sommerstop
 
 `number.<master>_sommerstop_graense` (0 = fra, som er standard). Når udetemperaturen i gennemsnit over ca. et døgn når grænsen, holder rummene pause (`Sommerstop (Slukket)`), og pumperne følger med. Varmen kommer igen, når middelet er 1 °C under grænsen. Der kræves mindst 6 timers målinger, og mangler udetemperaturen i et døgn, varmes der igen. Skal et rum have gulvvarme hele året (fx et bad), slås *Sommerstop gælder også dette rum* fra under rummets *Konfigurer*. Ventilmotion kører stadig.
@@ -394,8 +398,9 @@ Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur 
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.12.0, 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Ny (1.12.0): **reserve-rumføler**; batterialarmen dækker også reserve- og fugtføler; skimmelberegningen bruger fugtfølerens egen temperatur
 - Ny (1.11.0): **rum uden rumføler** (fx et vaskerum). Lad rumføleren stå tom, når rummet tilføjes: så reguleres kun efter gulvet (`Kun Gulv`), der laves intet rum-setpunkt, og kortet viser kun gulvet. Ubeboet/Frostsikker sænker gulvmålet lige så mange grader, som et rum med 21° setpunkt ville blive sænket
 - Rettet (1.10.2): **blød gulvgrænse** i stedet for savtakket tænd/sluk ved maks. gulvtemperatur
 - Rettet (1.10.1): bruger HA 2026.11's nye `native_*`-temperaturfelter, så integrationen også virker fra HA 2027.11 (ældre HA virker stadig)
