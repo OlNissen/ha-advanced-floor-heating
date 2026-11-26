@@ -96,7 +96,7 @@ class AdvancedFloorHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="room",
             data_schema=vol.Schema({
                 vol.Required("name", default="Mit Rum"): str,
-                vol.Required(CONF_ROOM_SENSOR): selector.EntitySelector(
+                vol.Optional(CONF_ROOM_SENSOR): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
                 vol.Required(CONF_FLOOR_SENSOR): selector.EntitySelector(

@@ -103,7 +103,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._attr_name = entry.data["name"]
         self._attr_unique_id = f"{entry.entry_id}_climate"
         self._attr_device_info = device_info(entry)
-        self._room_sensor = entry.data[CONF_ROOM_SENSOR]
+        self._room_sensor = entry.data.get(CONF_ROOM_SENSOR) or None   # None: rum uden rumføler
         self._floor_sensor = entry.data[CONF_FLOOR_SENSOR]
         self._heater_switch = entry.data[CONF_HEATER_SWITCH]
         # Optional: binary_sensor of the window(s) in this room
@@ -222,6 +222,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             PRESET_BOTH_BOTH_MET,
         ]
         self._attr_preset_mode = PRESET_BOTH_BOTH_MET
+        if self._room_sensor is None:
+            # Uden rumføler kan rummet kun reguleres efter gulvet
+            self._attr_preset_modes = [PRESET_FLOOR_ONLY]
+            self._attr_preset_mode = PRESET_FLOOR_ONLY
         self._attr_hvac_mode = HVACMode.HEAT
         self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
 
@@ -229,6 +233,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
     def _sensor_problem(self, entity_id):
         """None hvis foeleren er i orden, ellers 'mangler' eller 'gammel'."""
+        if not entity_id:
+            return "mangler"
         state = self.hass.states.get(entity_id)
         if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return "mangler"
@@ -587,6 +593,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "open_sensors": self.open_sensors,
             # Bruges af Lovelace-kortet til at vise historik (graf)
             "room_sensor": self._room_sensor,
+            "has_room_sensor": self._room_sensor is not None,
             "floor_sensor": self._floor_sensor,
             "heater_switch": self._heater_switch,
             "window_open": self.window_open,
@@ -826,6 +833,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         now = time.monotonic()
         alarms = []
         for label, entity in (("Rumføler", self._room_sensor), ("Gulvføler", self._floor_sensor)):
+            if entity is None:
+                continue  # rummet har ingen rumføler
             problem = self._sensor_problem(entity)
             if problem is None:
                 self._sensor_bad_since.pop(entity, None)
@@ -902,7 +911,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._battery_scanned = now
             self._battery_entities = {
                 sensor: find_battery_entities(self.hass, sensor)
-                for sensor in (self._room_sensor, self._floor_sensor)
+                for sensor in (self._room_sensor, self._floor_sensor) if sensor
             }
         alarms, seen = [], set()
         for label, sensor in (("rumføler", self._room_sensor), ("gulvføler", self._floor_sensor)):

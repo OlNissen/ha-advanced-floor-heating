@@ -306,6 +306,13 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     // ikke bruges i den valgte tilstand, dæmpes.
     const dimMarkers = this.config.dim_markers !== false;
 
+    // Rum uden rumføler: skjul hele rum-delen, og vis kun gulvet
+    const noRoom = attr.has_room_sensor === false;
+    ['#bg-arc-room', '#arc-room', '#temp-top-val', '#label-top'].forEach(sel => {
+      this.querySelector(sel).style.display = noRoom ? 'none' : '';
+    });
+    this.querySelector('#thermostat-wrapper').firstElementChild.style.top = noRoom ? '-120px' : '0px';
+
     if (!this._isDraggingRoom && !this._timeoutRoom) {
       this.querySelector('#temp-top-val').innerText = fmtTemp(temp_top, topMissing);
       this.querySelector('#label-top').innerText = text_top;
@@ -325,7 +332,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       this.querySelector('#marker-floor').style.display = 'block';
       this.querySelector('#temp-bottom-val').style.display = 'block';
       this.querySelector('#label-bottom').style.display = 'block';
-      this.querySelector('#thermostat-wrapper').style.height = '260px';
+      this.querySelector('#thermostat-wrapper').style.height = noRoom ? '140px' : '260px';
 
       if (!this._isDraggingFloor && !this._timeoutFloor) {
         this.querySelector('#temp-bottom-val').innerText = fmtTemp(temp_bottom, bottomMissing);
@@ -429,7 +436,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       el.setAttribute('stroke', level === 'off' ? 'var(--disabled-text-color, #888)' : color);
     };
     // "Kun Gulv": rummet bruges ikke, så rum-justeringen skjules helt (knap + træk)
-    this._roomAdjustable = attr.preset_mode !== 'Kun Gulv';
+    this._roomAdjustable = attr.preset_mode !== 'Kun Gulv' && !noRoom;
     roomMk.style.display = this._roomAdjustable ? '' : 'none';
     // "Kun Rum": gulvet bruges ikke, så gulv-justeringen skjules også
     this._floorAdjustable = attr.preset_mode !== 'Kun Rum';

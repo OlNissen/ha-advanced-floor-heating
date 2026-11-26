@@ -15,7 +15,7 @@
         "description": "Hvert rum får sin egen regulator. Tilføj integrationen igen for hvert rum.",
         "data": {
           "name": "Navn på rummet",
-          "room_sensor": "Rumtemperatur sensor (Luft)",
+          "room_sensor": "Rumtemperatur sensor (Luft) - tom, hvis rummet ingen har (så reguleres kun efter gulvet)",
           "floor_sensor": "Gulvtemperatur sensor (Overflade)",
           "heater_switch": "Relæ til gulvvarmekreds",
           "window_sensor": "Vindues- og dørkontakter (valgfri)",

@@ -15,7 +15,7 @@
         "description": "Every room gets its own controller. Add the integration again for each room.",
         "data": {
           "name": "Room name (e.g. Living room)",
-          "room_sensor": "Room temperature sensor",
+          "room_sensor": "Room temperature sensor - leave empty if the room has none (floor only)",
           "floor_sensor": "Floor temperature sensor",
           "heater_switch": "Heater switch (thermal actuator/relay)",
           "window_sensor": "Window and door contacts (optional)",

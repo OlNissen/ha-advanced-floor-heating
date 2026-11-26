@@ -394,8 +394,9 @@ Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur 
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Ny (1.11.0): **rum uden rumføler** (fx et vaskerum). Lad rumføleren stå tom, når rummet tilføjes: så reguleres kun efter gulvet (`Kun Gulv`), der laves intet rum-setpunkt, og kortet viser kun gulvet. Ubeboet/Frostsikker sænker gulvmålet lige så mange grader, som et rum med 21° setpunkt ville blive sænket
 - Rettet (1.10.2): **blød gulvgrænse** i stedet for savtakket tænd/sluk ved maks. gulvtemperatur
 - Rettet (1.10.1): bruger HA 2026.11's nye `native_*`-temperaturfelter, så integrationen også virker fra HA 2027.11 (ældre HA virker stadig)
 - Ny (1.10.0): alarm for **lavt batteri** og **telestat der mangler eller ikke svarer** (med gensendelse), **"løst"-besked**, **sommerstop**, **ferie med forvarmning**, **lært varmemodel** og **skimmelrisiko**. PID og PWM-tider er uændrede. Nyt og slået fra, indtil du vælger det: sommerstop, ferie og skimmelrisiko

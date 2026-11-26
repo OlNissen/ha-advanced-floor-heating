@@ -4,7 +4,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .const import (
     DOMAIN, MASTER_KEY, CONF_ENTRY_TYPE, TYPE_MASTER,
-    DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP,
+    DEFAULT_UNOCCUPIED_TEMP, DEFAULT_FROST_TEMP, CONF_ROOM_SENSOR,
 )
 from .helpers import UpdateListenerMixin, device_info, MASTER_SIGNAL, MASTER_VALUES_SIGNAL
 
@@ -20,7 +20,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
             MasterPreheatNumber(entry),
         ])
         return
-    async_add_entities([RoomSetpointNumber(entry), FloorSetpointNumber(entry)])
+    if entry.data.get(CONF_ROOM_SENSOR):
+        async_add_entities([RoomSetpointNumber(entry), FloorSetpointNumber(entry)])
+    else:
+        async_add_entities([FloorSetpointNumber(entry)])
 
 
 class MasterTempNumber(RestoreNumber):
