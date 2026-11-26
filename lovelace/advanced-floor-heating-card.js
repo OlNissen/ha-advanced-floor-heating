@@ -289,6 +289,16 @@ class AdvancedFloorHeatingCard extends HTMLElement {
 
     let temp_top = showTarget ? room_bor : room_er;
     let temp_bottom = showTarget ? floor_bor : floor_er;
+    // Mangler en føler, sender integrationen 0.0 - vis en streg i stedet for en falsk måling.
+    // Gælder kun den målte temperatur; setpunktet kan altid vises.
+    const sensorMissing = (sensorId, value) => {
+      if (!sensorId) return false;
+      const s = hass.states[sensorId];
+      return !s || !isFinite(parseFloat(s.state)) || value === 0;
+    };
+    const topMissing = !showTarget && sensorMissing(attr.room_sensor, attr.room_temperature);
+    const bottomMissing = !showTarget && sensorMissing(attr.floor_sensor, attr.floor_temperature);
+    const fmtTemp = (value, missing) => missing ? '–°' : `${value.toFixed(1)}°`;
     let text_top = "RUM";
     let text_bottom = "GULV";
 
@@ -297,7 +307,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
     const dimMarkers = this.config.dim_markers !== false;
 
     if (!this._isDraggingRoom && !this._timeoutRoom) {
-      this.querySelector('#temp-top-val').innerText = `${temp_top.toFixed(1)}°`;
+      this.querySelector('#temp-top-val').innerText = fmtTemp(temp_top, topMissing);
       this.querySelector('#label-top').innerText = text_top;
       this.querySelector('#label-top').style.color = "var(--secondary-text-color)";
     }
@@ -318,7 +328,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       this.querySelector('#thermostat-wrapper').style.height = '260px';
 
       if (!this._isDraggingFloor && !this._timeoutFloor) {
-        this.querySelector('#temp-bottom-val').innerText = `${temp_bottom.toFixed(1)}°`;
+        this.querySelector('#temp-bottom-val').innerText = fmtTemp(temp_bottom, bottomMissing);
         this.querySelector('#label-bottom').innerText = text_bottom;
         this.querySelector('#label-bottom').style.color = "var(--secondary-text-color)";
       }
