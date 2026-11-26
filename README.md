@@ -351,6 +351,8 @@ Gruppen finder selv sine rum, ventiler og pumpekontakter ud fra rummene. Flytter
 - **Skru ned**, når mindst 70 % af rummene har næsten lukkede ventiler, og ingen mangler varme. Skal have holdt i **6 timer**.
 - Beskeden kommer som en HA-notifikation (og som event `advanced_floor_heating_shunt_advice`) og højst én gang i døgnet. Kontakten *Shunt-alarm aktiv* slår den fra.
 
+**Farver fra styringen:** `Shunt Råd` har attributter, som dashboardets målere kan bruge, så farverne viser det samme, som styringen mener. `mindste_fremloeb` er det højeste aktive gulvmål i gruppen + 3 °C (`styrende_rum` viser, hvilket rum der bestemmer det). `fremloeb_segmenter` er rødt under det mindste fremløb, grønt derfra og 10 °C op og orange derover. Råder styringen til at skrue op eller ned, flyttes det grønne område 2 °C væk fra den nuværende temperatur, så viseren står i orange. Ville et trin ned give koldere vand, end gulvene kan varmes med, står der `Passer · skru ikke lavere`. Står pumpen stille, er måleren grå. `ventil_segmenter` er grøn ved OK, orange ved råd og grå, når ingen rum varmer. `rum` er en linje pr. rum med status og farve (fx `Ved gulvgrænsen`, `Mangler varme`, `Gulv for varmt (stop)`). Målere med skiftende zoner kræver fx `config-template-card`.
+
 **Entiteter pr. gruppe:** `Varmekald`, `Pumpe kører`, `Pumpestatus`, `Ventiler åbne` (%), `Shunt Råd`, `Shunt Fremløb`, kontakterne `Pumpestyring aktiv` og `Shunt-alarm aktiv`, og knappen `Pumpemotion nu`.
 
 ## 🔔 Alarmer og kontrol af telestaten
@@ -398,8 +400,9 @@ Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur 
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.12.0, 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.13.0, 1.12.0, 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Ny (1.13.0): pumpegruppen beregner **farvezoner til målerne** og en **status pr. rum**
 - Ny (1.12.0): **reserve-rumføler**; batterialarmen dækker også reserve- og fugtføler; skimmelberegningen bruger fugtfølerens egen temperatur
 - Ny (1.11.0): **rum uden rumføler** (fx et vaskerum). Lad rumføleren stå tom, når rummet tilføjes: så reguleres kun efter gulvet (`Kun Gulv`), der laves intet rum-setpunkt, og kortet viser kun gulvet. Ubeboet/Frostsikker sænker gulvmålet lige så mange grader, som et rum med 21° setpunkt ville blive sænket
 - Rettet (1.10.2): **blød gulvgrænse** i stedet for savtakket tænd/sluk ved maks. gulvtemperatur

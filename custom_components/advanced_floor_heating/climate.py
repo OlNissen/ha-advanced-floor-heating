@@ -24,6 +24,7 @@ from .const import (
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES, SUPPLY_MARGIN,
     VERIFY_DELAY_SECONDS, VERIFY_RETRIES, CONF_SUMMER_APPLIES, STATUS_SUMMER,
     CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY, FLOOR_LIMIT_MARGIN, STATUS_FLOOR_LIMIT, CONF_BACKUP_SENSOR,
+    MOLD_CLEAR_RH, MOLD_ALARM_RH,
 )
 from homeassistant.helpers.storage import Store
 from .health import find_battery_entities, find_sibling_temperature, battery_low, surface_humidity, MoldWatch
@@ -675,6 +676,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "humidity_sensor": self._humidity_sensor,
             "surface_humidity": None if self._mold.surface is None else round(self._mold.surface),
             "mold_risk": self._mold.risk,
+            "mold_limits": [MOLD_CLEAR_RH, MOLD_ALARM_RH],
         }
 
     # ------------------------------------------------------------------ control

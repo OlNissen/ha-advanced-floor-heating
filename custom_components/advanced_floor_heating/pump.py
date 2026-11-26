@@ -23,6 +23,7 @@ from .const import (
     PUMP_MOTION_MINUTES, PUMP_MOTION_HOUR, ADVICE_UP_HOURS, ADVICE_DOWN_HOURS, ADVICE_COOLDOWN_HOURS,
     ADVICE_OUTPUT_HIGH, ADVICE_OUTPUT_LOW, ADVICE_SHORT, ADVICE_FLOOR_HEADROOM, ADVICE_LOW_SHARE,
     EVENT_SHUNT_ADVICE, PRESET_ROOM_ONLY, PRESET_FLOOR_ONLY, MODE_OFF,
+    SUPPLY_MARGIN, SHUNT_BAND, SHUNT_STEP, COLOR_GREEN, COLOR_ORANGE, COLOR_RED, COLOR_GREY,
 )
 from .helpers import pump_signal
 from .master import get_master
@@ -88,6 +89,116 @@ def evaluate_advice(rooms):
     if tot and not starved and low >= ADVICE_LOW_SHARE * tot:
         return ADVICE_DOWN, starved, tot, mean
     return ADVICE_OK, starved, tot, mean
+
+
+# ---------------------------------------------------------------- visning: zoner og status fra styringen
+
+
+def _active(room):
+    return not (room._attr_hvac_mode == "off" or room.house_mode == MODE_OFF
+                or getattr(room, "summer_stopped", False))
+
+
+def minimum_supply(rooms):
+    """(mindste fremløb der kan varme gulvene, rummet der bestemmer det) eller (None, None)."""
+    targets = [(r.effective_floor_target, r.name) for r in rooms if _active(r)]
+    if not targets:
+        return None, None
+    target, name = max(targets)
+    return round(target + SUPPLY_MARGIN, 1), name
+
+
+def shunt_view(temp, minimum, advice, running):
+    """Zoner til shuntens måler. Viseren står kun i grønt, når styringen mener, at fremløbet passer."""
+    low, high = 15.0, 45.0
+    if temp is not None:
+        low, high = min(low, math.floor(temp) - 2), max(high, math.ceil(temp) + 3)
+
+    def result(status, color, segments, green=(None, None)):
+        return {"status": status, "farve": color, "min": low, "max": high, "segmenter": segments,
+                "groen_fra": green[0], "groen_til": green[1]}
+
+    grey = [{"from": low, "color": COLOR_GREY}]
+    if temp is None or minimum is None:
+        return result("Ingen data" if temp is None else "Ingen rum varmer", COLOR_GREY, grey)
+    if not running:
+        return result("Pumpen står stille", COLOR_GREY, grey)
+
+    green_from, green_to = minimum, minimum + SHUNT_BAND
+    if temp < minimum:
+        status, color = "For koldt til at varme gulvet", COLOR_RED
+    elif advice == ADVICE_UP:
+        status, color = "Bør skrues op", COLOR_ORANGE
+        green_from = max(minimum, temp + SHUNT_STEP)
+        green_to = max(green_to, green_from + 3)
+    elif advice == ADVICE_DOWN and temp - SHUNT_STEP >= minimum:
+        status, color = "Bør skrues ned", COLOR_ORANGE
+        green_to = max(minimum + 1, temp - SHUNT_STEP)
+    elif advice == ADVICE_DOWN and temp < green_to:
+        # Et trin ned ville være koldere, end gulvene kan varmes med
+        status, color = "Passer · skru ikke lavere", COLOR_GREEN
+    elif temp >= green_to:
+        status, color = "Højere end nødvendigt", COLOR_ORANGE
+    else:
+        status, color = "Passer", COLOR_GREEN
+    green_from, green_to = round(green_from, 1), round(max(green_to, green_from + 1), 1)
+    high = max(high, math.ceil(green_to) + 3)
+
+    segments = [{"from": low, "color": COLOR_RED}]
+    if green_from > minimum:
+        segments.append({"from": minimum, "color": COLOR_ORANGE})
+    segments.append({"from": green_from, "color": COLOR_GREEN})
+    segments.append({"from": green_to, "color": COLOR_ORANGE})
+    return result(status, color, segments, (green_from, green_to))
+
+
+def valve_view(advice, starved, regulating):
+    """Farve til ventilmåleren: følger styringens råd, ikke faste procenter."""
+    if not regulating:
+        status, color = "Ingen rum varmer", COLOR_GREY
+    elif advice == ADVICE_UP:
+        status, color = "Skru op", COLOR_ORANGE
+    elif advice == ADVICE_DOWN:
+        status, color = "Skru ned", COLOR_ORANGE
+    elif starved:
+        status, color = f"OK · {len(starved)} mangler varme", COLOR_GREEN
+    else:
+        status, color = "OK", COLOR_GREEN
+    return {"status": status, "farve": color, "segmenter": [{"from": 0, "color": color}]}
+
+
+def room_report(rooms, starved):
+    """Én linje pr. rum: hvad rummet laver, og farven der hører til."""
+    out = []
+    for r in sorted(rooms, key=lambda x: x.name):
+        floor = r._read_temp(r._floor_sensor)
+        status_text = getattr(r, "_regulation_status", "") or ""
+        output = round(float(r._pid_signal))
+        if r.alarms:
+            status, color = r.alarms[0], COLOR_RED
+        elif r._attr_hvac_mode == "off" or r.house_mode == MODE_OFF:
+            status, color = "Slukket", COLOR_GREY
+        elif getattr(r, "summer_stopped", False):
+            status, color = "Sommerstop", COLOR_GREY
+        elif floor is None:
+            status, color = "Gulvføler mangler", COLOR_RED
+        elif r._frozen:
+            status, color = "Vindue åbent", COLOR_GREY
+        elif status_text.startswith("Sikkerhedsstop"):
+            status, color = "Gulv for varmt (stop)", COLOR_RED
+        elif getattr(r, "_floor_limited", False):
+            status, color = "Ved gulvgrænsen", COLOR_ORANGE
+        elif r.name in starved:
+            status, color = "Mangler varme", COLOR_ORANGE
+        elif output <= 0:
+            status, color = "Har varme nok", COLOR_GREEN
+        else:
+            status, color = "Varmer", COLOR_GREEN
+        out.append({
+            "navn": r.name, "status": status, "farve": color, "udgang": output,
+            "gulv": None if floor is None else round(floor, 1), "gulv_max": r._max_floor_temp,
+        })
+    return out
 
 
 class PumpGroupController:
@@ -226,6 +337,29 @@ class PumpGroupController:
             left = max(0, math.ceil((self._stop_at - self.now()) / 60))
             return f"Efterløb (stopper om {left} min)"
         return "Står stille"
+
+    def views(self):
+        """Alt, hvad dashboardets målere skal bruge."""
+        rooms = self.rooms()
+        minimum, deciding = minimum_supply(rooms)
+        running = bool(self.demand() or self.motion_active or self._stop_at is not None)
+        shunt = shunt_view(self.supply_temp(), minimum, self.advice, running)
+        valves = valve_view(self.advice, self.advice_rooms, self.rooms_regulating)
+        return {
+            "mindste_fremloeb": minimum,
+            "styrende_rum": deciding,
+            "fremloeb_status": shunt["status"],
+            "fremloeb_farve": shunt["farve"],
+            "fremloeb_min": shunt["min"],
+            "fremloeb_max": shunt["max"],
+            "fremloeb_groen_fra": shunt["groen_fra"],
+            "fremloeb_groen_til": shunt["groen_til"],
+            "fremloeb_segmenter": shunt["segmenter"],
+            "ventil_status": valves["status"],
+            "ventil_farve": valves["farve"],
+            "ventil_segmenter": valves["segmenter"],
+            "rum": room_report(rooms, self.advice_rooms),
+        }
 
     # ---------------------------------------------------------------- pumpestyring
 

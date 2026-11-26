@@ -168,6 +168,14 @@ ADVICE_FLOOR_HEADROOM = 3.0                 # gulvet maa hoejst vaere saa mange 
 ADVICE_LOW_SHARE = 0.7
 EVENT_SHUNT_ADVICE = "advanced_floor_heating_shunt_advice"
 
+# Farvezoner til målerne (beregnes af styringen, så dashboardet viser det samme, som den mener)
+SHUNT_BAND = 10.0          # det grønne område går fra mindste fremløb og så mange grader op
+SHUNT_STEP = 2.0           # rådet er at skrue ca. så mange grader, så det grønne område flyttes tilsvarende
+COLOR_GREEN = "#43a047"
+COLOR_ORANGE = "#ffa600"
+COLOR_RED = "#db4437"
+COLOR_GREY = "#9e9e9e"
+
 # ---------------------------------------------------------------- Notifikationer (paa Masteren) og pumpegruppe pr. rum
 CONF_NOTIFY_IN_HA = "notify_in_ha"          # vis beskeder som HA-notifikation (standard ja)
 CONF_NOTIFY_MOBILES = "notify_mobiles"      # notify-services (mobile_app_...) der faar en push

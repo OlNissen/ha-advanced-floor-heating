@@ -123,6 +123,8 @@ class ShuntAdviceSensor(_PumpEntity, SensorEntity):
     """Råd til shuntens termostat: OK, Skru op eller Skru ned."""
 
     _attr_icon = "mdi:tune-vertical"
+    # Farvezoner og rumliste skifter tit og skal ikke fylde i databasen
+    _unrecorded_attributes = frozenset({"rum", "fremloeb_segmenter", "ventil_segmenter"})
 
     def __init__(self, entry):
         super().__init__(entry, "Shunt Råd", "shunt_advice")
@@ -147,6 +149,7 @@ class ShuntAdviceSensor(_PumpEntity, SensorEntity):
             "rum_der_regulerer": c.rooms_regulating,
             "middel_udgang": c.mean_output,
             "besked_efter_timer": ADVICE_UP_HOURS if c.advice == ADVICE_UP else ADVICE_DOWN_HOURS,
+            **c.views(),
         }
 
 
