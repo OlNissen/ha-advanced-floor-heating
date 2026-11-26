@@ -37,6 +37,10 @@ from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 
 _LOGGER = logging.getLogger(__name__)
 
+# HA 2026.11 omdøbte klima-entitetens temperaturfelter til native_*. De gamle navne virker ikke fra 2027.11,
+# og ældre HA kender kun dem. Derfor defineres de gamle kun, når HA ikke har de nye.
+_NATIVE_TEMPERATURE = hasattr(ClimateEntity, "native_current_temperature")
+
 
 def _as_list(value):
     """Gammel opsætning gemte én kontakt som tekst - nu er det en liste."""
@@ -198,7 +202,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._tuner_result = None
         self._autotune_msg = None
 
-        self._attr_temperature_unit = UnitOfTemperature.CELSIUS
+        if _NATIVE_TEMPERATURE:
+            self._attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+        else:
+            self._attr_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_supported_features = (
             ClimateEntityFeature.TARGET_TEMPERATURE |
             ClimateEntityFeature.PRESET_MODE |
@@ -1172,15 +1179,19 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                 await asyncio.sleep(cycle)
 
     @property
-    def current_temperature(self):
+    def native_current_temperature(self):
         sensor_id = self._floor_sensor if self._attr_preset_mode == PRESET_FLOOR_ONLY else self._room_sensor
         return self._read_temp(sensor_id)
 
     @property
-    def target_temperature(self):
+    def native_target_temperature(self):
         if self._attr_preset_mode == PRESET_FLOOR_ONLY:
             return self._target_temp_floor
         return self._target_temp_room
+
+    if not _NATIVE_TEMPERATURE:
+        current_temperature = native_current_temperature
+        target_temperature = native_target_temperature
 
     # --- CUSTOM SERVICES (English) ---
     async def async_set_room_temperature(self, temperature):
