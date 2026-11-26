@@ -359,7 +359,7 @@ Rummets alarm (`binary_sensor.<rum>_alarm`, samlet på Masterens alarm) tændes 
 
 - rum- eller gulvføler, der har manglet i 15 minutter
 - telestat, der har manglet i 15 minutter
-- telestat, der ikke følger kommandoen. 15 sekunder efter hver kommando kontrolleres kontakten, og kommandoen sendes igen højst to gange. Følger den stadig ikke, kommer alarmen. Den slettes først, når netop den kommando, der fejlede, bliver fulgt. PWM-tiderne påvirkes ikke
+- telestat, der ikke følger kommandoen. 5 sekunder efter en kommando kontrolleres kontakten, og kommandoen sendes igen højst to gange med 5 sekunders mellemrum. Følger den stadig ikke efter 15 sekunder, kommer alarmen. Skifter PWM'en til den modsatte kommando inden da, starter kontrollen forfra, så meget korte pulser kontrolleres ikke færdigt. Den slettes først, når netop den kommando, der fejlede, bliver fulgt. PWM-tiderne påvirkes ikke
 - lavt batteri (under 15 %, i orden igen fra 20 %). Batteriet findes selv, hvis det er en batteri-entitet på samme enhed som rum- eller gulvføleren
 - ventil, der muligvis sidder fast
 

@@ -66,7 +66,7 @@ BATTERY_LOW = 15.0            # % - alarm under denne ...
 BATTERY_OK = 20.0             # ... og i orden igen fra denne
 
 # Kontrol af kommandoer til telestaten (PWM-tiderne er uaendrede)
-VERIFY_DELAY_SECONDS = 15     # saa laenge faar kontakten til at melde den nye tilstand
+VERIFY_DELAY_SECONDS = 5      # saa laenge faar kontakten til at melde den nye tilstand (3 tjek = 15 s, saa det naas inden for en kort PWM-fase)
 VERIFY_RETRIES = 2            # saa mange gensendelser, foer det er en alarm
 
 # Sommerstop (graensen saettes paa Masteren; 0 = fra)
