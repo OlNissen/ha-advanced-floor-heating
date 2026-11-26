@@ -24,10 +24,13 @@ from .const import (
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES, SUPPLY_MARGIN,
     VERIFY_DELAY_SECONDS, VERIFY_RETRIES, CONF_SUMMER_APPLIES, STATUS_SUMMER,
     CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY, FLOOR_LIMIT_MARGIN, STATUS_FLOOR_LIMIT, CONF_BACKUP_SENSOR,
-    MOLD_CLEAR_RH, MOLD_ALARM_RH,
+    MOLD_CLEAR_RH, MOLD_ALARM_RH, CONF_SILENT_HOURS, DEFAULT_SILENT_HOURS,
 )
 from homeassistant.helpers.storage import Store
-from .health import find_battery_entities, find_sibling_temperature, battery_low, surface_humidity, MoldWatch
+from .health import (
+    find_battery_entities, find_sibling_temperature, find_device_entities, silent_seconds,
+    battery_low, surface_humidity, MoldWatch,
+)
 from .thermal import ThermalModel
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
 from .master import get_master
@@ -169,6 +172,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._humidity_sensor = _option(entry, CONF_HUMIDITY_SENSOR) or None
         self._humidity_temp_sensor = None   # temperaturen på fugtfølerens egen enhed
         self._humidity_temp_scanned = None
+        # Tavs batteriføler (gælder rum-, reserve- og fugtføler, aldrig gulvføleren)
+        silent = _option(entry, CONF_SILENT_HOURS, DEFAULT_SILENT_HOURS)
+        self._silent_hours = DEFAULT_SILENT_HOURS if silent is None else float(silent)
+        self._device_cache = {}    # føler -> (hvornår slået op, entiteter, har batteri)
         # Reserve-rumføler (giver kun mening, når rummet har en rumføler)
         self._backup_sensor = (_option(entry, CONF_BACKUP_SENSOR) or None) if self._room_sensor else None
         self._mold = MoldWatch()
@@ -251,7 +258,27 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             seen = getattr(state, "last_reported", None) or state.last_updated
             if (dt_util.utcnow() - seen).total_seconds() > self._stale_hours * 3600:
                 return "gammel"
+        if self._is_silent(entity_id):
+            return "tavs"
         return None
+
+    def _is_silent(self, entity_id):
+        """True, når en trådløs batteriføler ikke har ændret nogen værdi i `silent_hours` timer."""
+        if self._silent_hours <= 0:
+            return False
+        if entity_id not in (self._room_sensor, getattr(self, "_backup_sensor", None),
+                             getattr(self, "_humidity_sensor", None)):
+            return False
+        now = time.monotonic()
+        cached = self._device_cache.get(entity_id)
+        if cached is None or now - cached[0] >= 3600:
+            entities, battery = find_device_entities(self.hass, entity_id)
+            cached = self._device_cache[entity_id] = (now, entities, battery)
+        _, entities, battery = cached
+        if not battery:
+            return False   # kablede følere (fx IHC) melder kun ved ændring og tjekkes ikke
+        quiet = silent_seconds([self.hass.states.get(e) for e in entities], dt_util.utcnow())
+        return quiet is not None and quiet > self._silent_hours * 3600
 
     def _read_temp(self, entity_id):
         """Return the sensor value as float, or None if missing / stale / not a number."""
@@ -453,6 +480,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
     # ------------------------------------------------------------- skimmelrisiko
 
     def _read_humidity(self):
+        if self._is_silent(self._humidity_sensor):
+            return None
         state = self.hass.states.get(self._humidity_sensor)
         try:
             return float(state.state)
@@ -625,6 +654,8 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "has_room_sensor": self._room_sensor is not None,
             "backup_room_sensor": self._backup_sensor,
             "using_backup": self.using_backup,
+            "room_sensor_problem": None if self._room_sensor is None else self._sensor_problem(self._room_sensor),
+            "silent_hours": self._silent_hours,
             "floor_sensor": self._floor_sensor,
             "heater_switch": self._heater_switch,
             "window_open": self.window_open,
@@ -699,7 +730,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         ):
             return
         status = self._regulation_status or ""
-        if "mangler" in status or "gammel" in status or status.startswith(("Sikkerhedsstop", "Sommerstop", STATUS_FLOOR_LIMIT)):
+        if "mangler" in status or "gammel" in status or "tavs" in status or status.startswith(("Sikkerhedsstop", "Sommerstop", STATUS_FLOOR_LIMIT)):
             return
         floor = self._read_temp(self._floor_sensor)
         if floor is None:
@@ -864,9 +895,10 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         """Opdater rummets alarmer: foeler mangler/gammel i en periode, ventil der ikke varmer."""
         now = time.monotonic()
         alarms = []
-        for label, entity in (("Rumføler", self._room_sensor), ("Gulvføler", self._floor_sensor)):
+        for label, entity in (("Rumføler", self._room_sensor), ("Gulvføler", self._floor_sensor),
+                              ("Reserveføler", self._backup_sensor)):
             if entity is None:
-                continue  # rummet har ingen rumføler
+                continue  # rummet har ikke denne føler
             problem = self._sensor_problem(entity)
             if problem is None:
                 self._sensor_bad_since.pop(entity, None)

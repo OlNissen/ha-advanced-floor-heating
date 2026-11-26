@@ -354,7 +354,7 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       mode = 'Autotune kører';
     } else if (/^Sikkerhedsstop/.test(reg_status)) {
       mode = 'Sikkerhedsstop – gulv for varmt';
-    } else if (/mangler|gammel/i.test(reg_status)) {
+    } else if (/mangler|gammel|tavs/i.test(reg_status)) {
       mode = reg_status.replace(/\s*\(.*\)\s*$/, '');
     } else if (/^Kun Rum$/.test(reg_status) || /^Kun Gulv$/.test(reg_status)) {
       mode = `Regulerer kun efter ${reg_status.slice(4).toLowerCase()}`;

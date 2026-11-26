@@ -14,7 +14,7 @@ from .const import (
     TYPE_PUMP, CONF_GROUP_ROOMS, CONF_PUMP_SWITCHES, CONF_PUMP_FEEDBACK, CONF_SHUNT_SENSOR,
     CONF_PUMP_STOP_MINUTES, DEFAULT_PUMP_STOP_MINUTES, CONF_PUMP_MOTION_DAYS, DEFAULT_PUMP_MOTION_DAYS,
     CONF_NOTIFY_IN_HA, CONF_NOTIFY_MOBILES, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
-    CONF_SUMMER_APPLIES, CONF_HUMIDITY_SENSOR, CONF_BACKUP_SENSOR,
+    CONF_SUMMER_APPLIES, CONF_HUMIDITY_SENSOR, CONF_BACKUP_SENSOR, CONF_SILENT_HOURS, DEFAULT_SILENT_HOURS,
 )
 
 def _group_options(hass):
@@ -214,6 +214,12 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_STALE_HOURS,
                     default=float(options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=72, step=0.5)
+                ),
+                vol.Required(
+                    CONF_SILENT_HOURS,
+                    default=float(options.get(CONF_SILENT_HOURS, DEFAULT_SILENT_HOURS)),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=72, step=0.5)
                 ),

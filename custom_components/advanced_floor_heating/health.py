@@ -20,6 +20,24 @@ def find_sibling_temperature(hass, entity_id):
     return found[0] if found else None
 
 
+def find_device_entities(hass, entity_id):
+    """Alle sensor-entiteter på samme enhed og om enheden har batteri (= trådløs batteriføler)."""
+    everything = _siblings(hass, entity_id, None, ("sensor", "binary_sensor"))
+    return everything, bool(_siblings(hass, entity_id, "battery", ("sensor", "binary_sensor")))
+
+
+def silent_seconds(states, now_utc):
+    """Sekunder siden den seneste ændring fra nogen af enhedens entiteter, eller None."""
+    newest = None
+    for state in states:
+        if state is None or state.state in ("unknown", "unavailable"):
+            continue
+        seen = getattr(state, "last_reported", None) or state.last_updated
+        if newest is None or seen > newest:
+            newest = seen
+    return None if newest is None else (now_utc - newest).total_seconds()
+
+
 def _siblings(hass, entity_id, wanted_class, domains):
     try:
         from homeassistant.helpers import entity_registry as er
@@ -32,7 +50,7 @@ def _siblings(hass, entity_id, wanted_class, domains):
     found = []
     for other in er.async_entries_for_device(registry, entry.device_id):
         device_class = other.device_class or other.original_device_class
-        if device_class == wanted_class and other.entity_id.split(".")[0] in domains:
+        if (wanted_class is None or device_class == wanted_class) and other.entity_id.split(".")[0] in domains:
             found.append(other.entity_id)
     return found
 

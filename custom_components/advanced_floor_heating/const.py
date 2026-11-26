@@ -95,6 +95,11 @@ THERMAL_MIN_IDLE = 8                # vinduer med ventilen mest lukket
 THERMAL_FALLBACK_RATE = 0.25        # °C pr. time, indtil modellen er laert
 THERMAL_SAVE_DELAY = 600
 
+# Tavs batterifoeler: ingen af enhedens vaerdier har aendret sig i saa mange timer (0 = fra).
+# HA's MQTT-foelere opdaterer kun tidsstemplet, naar en vaerdi aendrer sig, saa graensen skal vaere rummelig.
+CONF_SILENT_HOURS = "silent_hours"
+DEFAULT_SILENT_HOURS = 12.0
+
 # Reserve-rumfoeler: tager over, naar den almindelige rumfoeler mangler
 CONF_BACKUP_SENSOR = "backup_room_sensor"
 

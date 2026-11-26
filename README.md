@@ -362,6 +362,7 @@ Rummets alarm (`binary_sensor.<rum>_alarm`, samlet på Masterens alarm) tændes 
 - rum- eller gulvføler, der har manglet i 15 minutter
 - telestat, der har manglet i 15 minutter
 - telestat, der ikke følger kommandoen. 5 sekunder efter en kommando kontrolleres kontakten, og kommandoen sendes igen højst to gange med 5 sekunders mellemrum. Følger den stadig ikke efter 15 sekunder, kommer alarmen. Skifter PWM'en til den modsatte kommando inden da, starter kontrollen forfra, så meget korte pulser kontrolleres ikke færdigt. Den slettes først, når netop den kommando, der fejlede, bliver fulgt. PWM-tiderne påvirkes ikke
+- **tavs batteriføler** (rum-, reserve- eller fugtføler): ingen værdi på følerens enhed har ændret sig i 12 timer (kan sættes pr. rum, 0 = fra). Så tæller føleren som manglende: reserven eller de koblede rum tager over, og ellers slukkes varmen (`Rumføler tavs`). Gælder kun enheder med batteri, så kablede følere (fx IHC) og gulvføleren påvirkes ikke. HA's MQTT-følere opdaterer kun tidsstemplet, når en værdi ændrer sig, så sæt ikke grænsen lavere end følerens længste normale pause. Efter en genstart starter uret forfra
 - lavt batteri (under 15 %, i orden igen fra 20 %). Batteriet findes selv, hvis det er en batteri-entitet på samme enhed som rum- eller gulvføleren
 - ventil, der muligvis sidder fast
 
@@ -400,8 +401,9 @@ Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur 
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.13.0, 1.12.0, 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.14.0, 1.13.0, 1.12.0, 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Ny (1.14.0): alarm for **tavs batteriføler**, og alarm for en reserveføler, der mangler
 - Ny (1.13.0): pumpegruppen beregner **farvezoner til målerne** og en **status pr. rum**
 - Ny (1.12.0): **reserve-rumføler**; batterialarmen dækker også reserve- og fugtføler; skimmelberegningen bruger fugtfølerens egen temperatur
 - Ny (1.11.0): **rum uden rumføler** (fx et vaskerum). Lad rumføleren stå tom, når rummet tilføjes: så reguleres kun efter gulvet (`Kun Gulv`), der laves intet rum-setpunkt, og kortet viser kun gulvet. Ubeboet/Frostsikker sænker gulvmålet lige så mange grader, som et rum med 21° setpunkt ville blive sænket
