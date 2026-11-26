@@ -386,6 +386,7 @@ Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur 
 
 ## 🛡 Sikkerhed
 
+- **Blød gulvgrænse:** nær maks. gulvtemperatur regulerer PID'en efter gulvet og holder det 0,3 °C under maks. (status `Gulvgrænse`). Når rummet (eller gulvmålet) igen kræver mindre varme end grænsen, regulerer den efter det. PID-værdier og cyklustider er de samme. Det hårde sikkerhedsstop ved maks. gælder stadig. Uden den bløde grænse slog varmen fra og til ved maks., mens I-leddet løb op, og udgangen sprang mellem 0 og 100 %.
 - Gulvføleren er **påkrævet**: mangler den (`unavailable`/ugyldig værdi), slukkes varmen. Mangler rumføleren, og tilstanden bruger rummet, slukkes varmen også.
 - Når et rum genindlæses eller fjernes, stoppes de gamle regulerings-løkker og kontakten slukkes (før blev løkkerne liggende og kæmpede mod de nye).
 
@@ -393,8 +394,9 @@ Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur 
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Rettet (1.10.2): **blød gulvgrænse** i stedet for savtakket tænd/sluk ved maks. gulvtemperatur
 - Rettet (1.10.1): bruger HA 2026.11's nye `native_*`-temperaturfelter, så integrationen også virker fra HA 2027.11 (ældre HA virker stadig)
 - Ny (1.10.0): alarm for **lavt batteri** og **telestat der mangler eller ikke svarer** (med gensendelse), **"løst"-besked**, **sommerstop**, **ferie med forvarmning**, **lært varmemodel** og **skimmelrisiko**. PID og PWM-tider er uændrede. Nyt og slået fra, indtil du vælger det: sommerstop, ferie og skimmelrisiko
 - Rettet (1.9.2): rumkortet viser "–°" i stedet for 0,0°, når rum- eller gulvføleren mangler

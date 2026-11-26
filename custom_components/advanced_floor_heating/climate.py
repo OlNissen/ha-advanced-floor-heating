@@ -23,7 +23,7 @@ from .const import (
     CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES, SUPPLY_MARGIN,
     VERIFY_DELAY_SECONDS, VERIFY_RETRIES, CONF_SUMMER_APPLIES, STATUS_SUMMER,
-    CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY,
+    CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY, FLOOR_LIMIT_MARGIN, STATUS_FLOOR_LIMIT,
 )
 from homeassistant.helpers.storage import Store
 from .health import find_battery_entities, battery_low, surface_humidity, MoldWatch
@@ -188,6 +188,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._last_error = 0.0
         self._regulation_status = "Initialiserer..."
         self._frozen = False  # True while the output is held because a window is open
+        self._floor_limited = False  # True, mens PID'en regulerer efter gulvgrænsen
 
         self._p_out = 0.0
         self._i_out = 0.0
@@ -590,6 +591,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "heater_switch": self._heater_switch,
             "window_open": self.window_open,
             "output_frozen": self._frozen,
+            "floor_limited": self._floor_limited,
             "control_output": round(self._pid_signal, 2),
             "kp": self._kp,
             "ki": self._ki,
@@ -658,7 +660,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         ):
             return
         status = self._regulation_status or ""
-        if "mangler" in status or "gammel" in status or status.startswith(("Sikkerhedsstop", "Sommerstop")):
+        if "mangler" in status or "gammel" in status or status.startswith(("Sikkerhedsstop", "Sommerstop", STATUS_FLOOR_LIMIT)):
             return
         floor = self._read_temp(self._floor_sensor)
         if floor is None:
@@ -756,6 +758,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             return
 
         if self.summer_stopped:
+            self._floor_limited = False
             self._pid_signal = 0.0
             self._frozen = False
             self._reset_d = True  # ingen D-spike, når varmen tændes igen
@@ -791,7 +794,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         if curr_floor >= self._max_floor_temp:
             self._pid_signal = 0.0
             self._regulation_status = "Sikkerhedsstop (Gulv for varmt!)"
-        elif self._pid_signal == 0 and not frozen:
+        elif self._pid_signal == 0 and not frozen and not self._floor_limited:
             self._regulation_status = "Mål nået (Slukket)"
 
         self._update_alarms()
@@ -1099,6 +1102,17 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         else:
             error = err_f
             self._regulation_status = "Kun Gulv"
+
+        # Blød gulvgrænse: kræver gulvet mindre varme end tilstanden beder om, regulerer PID'en efter
+        # gulvet (lige under maks.), til rummet/gulvmålet igen er det mindste. Så undgås savtakket
+        # tænd/sluk ved det hårde stop, og I-leddet løber ikke op imens.
+        limit_error = (self._max_floor_temp - FLOOR_LIMIT_MARGIN) - curr_floor
+        self._floor_limited = limit_error < error
+        if self._floor_limited:
+            error = limit_error
+            self._regulation_status = (
+                f"{STATUS_FLOOR_LIMIT} (holder gulvet ved {self._max_floor_temp - FLOOR_LIMIT_MARGIN:.1f}°)"
+            )
 
         # Coming back from a frozen output: forget the old error so the
         # D-term does not give a spike on the first step.

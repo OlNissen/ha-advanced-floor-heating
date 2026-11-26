@@ -58,6 +58,10 @@ CONF_STALE_HOURS = "stale_hours"         # foeler uden opdatering i saa mange ti
 DEFAULT_STALE_HOURS = 0
 
 # Alarmer
+# Blød gulvgrænse: nær maks. gulvtemperatur regulerer PID'en efter gulvet i stedet for at slå fra og til
+FLOOR_LIMIT_MARGIN = 0.3      # gulvet holdes så mange grader under maks.; det hårde stop ved maks. gælder stadig
+STATUS_FLOOR_LIMIT = "Gulvgrænse"
+
 STUCK_VALVE_MINUTES = 90      # fuld udgang saa laenge uden at gulvet stiger ...
 STUCK_VALVE_MIN_RISE = 0.5    # ... mindst saa mange grader
 SUPPLY_MARGIN = 3.0           # shuntens fremloeb skal vaere mindst saa mange grader over gulvmaalet, ellers ingen "ventil fast"-alarm

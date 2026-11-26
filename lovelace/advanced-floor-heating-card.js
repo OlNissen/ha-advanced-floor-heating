@@ -355,6 +355,8 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       mode = `Regulerer efter ${reg_status.split(' ')[0].toLowerCase()}`;
     } else if (/^Mål nået/.test(reg_status)) {
       mode = 'Mål nået';
+    } else if (/^Gulvgrænse/.test(reg_status)) {
+      mode = 'Holder gulvet ved grænsen';
     } else if (/^Sommerstop/.test(reg_status)) {
       mode = 'Sommerstop';
     }
