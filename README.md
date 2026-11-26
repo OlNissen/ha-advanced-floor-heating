@@ -353,6 +353,37 @@ Gruppen finder selv sine rum, ventiler og pumpekontakter ud fra rummene. Flytter
 
 **Entiteter pr. gruppe:** `Varmekald`, `Pumpe kører`, `Pumpestatus`, `Ventiler åbne` (%), `Shunt Råd`, `Shunt Fremløb`, kontakterne `Pumpestyring aktiv` og `Shunt-alarm aktiv`, og knappen `Pumpemotion nu`.
 
+## 🔔 Alarmer og kontrol af telestaten
+
+Rummets alarm (`binary_sensor.<rum>_alarm`, samlet på Masterens alarm) tændes ved:
+
+- rum- eller gulvføler, der har manglet i 15 minutter
+- telestat, der har manglet i 15 minutter
+- telestat, der ikke følger kommandoen. 15 sekunder efter hver kommando kontrolleres kontakten, og kommandoen sendes igen højst to gange. Følger den stadig ikke, kommer alarmen. Den slettes først, når netop den kommando, der fejlede, bliver fulgt. PWM-tiderne påvirkes ikke
+- lavt batteri (under 15 %, i orden igen fra 20 %). Batteriet findes selv, hvis det er en batteri-entitet på samme enhed som rum- eller gulvføleren
+- ventil, der muligvis sidder fast
+
+Når alle rummets alarmer er væk, erstattes beskeden af **"løst"** (også som push, hvis du har valgt mobiler).
+
+## ☀️ Sommerstop
+
+`number.<master>_sommerstop_graense` (0 = fra, som er standard). Når udetemperaturen i gennemsnit over ca. et døgn når grænsen, holder rummene pause (`Sommerstop (Slukket)`), og pumperne følger med. Varmen kommer igen, når middelet er 1 °C under grænsen. Der kræves mindst 6 timers målinger, og mangler udetemperaturen i et døgn, varmes der igen. Skal et rum have gulvvarme hele året (fx et bad), slås *Sommerstop gælder også dette rum* fra under rummets *Konfigurer*. Ventilmotion kører stadig.
+
+## 🧳 Ferie med forvarmning
+
+1. Sæt Masteren til `Ubeboet` eller `Frostsikker`.
+2. Vælg hjemkomsten i `datetime.<master>_hjemkomst`.
+
+Masteren går selv tilbage til `Beboet` så tidligt, at huset er varmt til hjemkomsten, og sender en besked. Hvor tidligt, bestemmes af det langsomste rum plus 1 time (højst 72 timer). Attributterne `forvarmning_starter`, `forvarmning_timer` og `langsomste_rum` viser planen. Vil du bestemme det selv, så sæt `number.<master>_ferie_forvarmning` til et antal timer (0 = automatisk). Du annullerer ved at sætte hjemkomsten til et tidspunkt i fortiden eller sætte Masteren til `Beboet`. Rum med deres egen husstilstand er ikke med.
+
+## 🧠 Lært varmemodel
+
+Hvert rum lærer, hvor hurtigt det varmer op: `ændring pr. time = a × ventilens åbning (forsinket) − b × (rum − ude)`. Den fittes på 30-minutters målinger, gemmes på tværs af genstarter og prøver forsinkelser på 0-12 timer. Den bruges **kun til at vælge starttidspunktet for forvarmning** og ændrer ikke PID'en. Den kræver mindst et døgns brugbare målinger med både åben og lukket ventil. Indtil da regnes forsigtigt med 0,25 °C i timen. Resultatet står i attributterne `thermal_model` (`gain` °C/t ved fuld åbning, `loss`, `delay_h`) og `preheat_hours`. Målinger med åbent vindue, autotune og ventilmotion springes over.
+
+## 💧 Skimmelrisiko
+
+Vælg en **fugtføler** under rummets *Konfigurer* (kræver også udetemperatur på Masteren). Fugtigheden på den koldeste ydervæg beregnes efter DIN 4108-2 (temperaturfaktor 0,7). Har den været mindst 80 % i en time, får du en besked, og en ny når den er under 75 %. Det er et skøn, ikke en måling på væggen, og det tæller ikke som en alarm i gulvvarmen.
+
 ## 🛡 Sikkerhed
 
 - Gulvføleren er **påkrævet**: mangler den (`unavailable`/ugyldig værdi), slukkes varmen. Mangler rumføleren, og tilstanden bruger rummet, slukkes varmen også.
@@ -362,8 +393,9 @@ Gruppen finder selv sine rum, ventiler og pumpekontakter ud fra rummene. Flytter
 
 Al PID-data ligger som attributter på `climate`-entiteten: `control_output`, `pid_p`, `pid_i`, `pid_d`, `pid_e`, `room_temperature`, `floor_temperature`, `max_floor_temperature`, `window_open`, `output_frozen` m.fl.
 
-## 🧩 Ændringer i 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
+## 🧩 Ændringer i 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.0, 1.7.0, 1.6.0, 1.5.0 og 1.4.0
 
+- Ny (1.10.0): alarm for **lavt batteri** og **telestat der mangler eller ikke svarer** (med gensendelse), **"løst"-besked**, **sommerstop**, **ferie med forvarmning**, **lært varmemodel** og **skimmelrisiko**. PID og PWM-tider er uændrede. Nyt og slået fra, indtil du vælger det: sommerstop, ferie og skimmelrisiko
 - Rettet (1.9.2): rumkortet viser "–°" i stedet for 0,0°, når rum- eller gulvføleren mangler
 - Ny (1.9.1): alarmen "Ventil sidder muligvis fast" udløses ikke, når shuntens fremløb er for koldt til at varme gulvet (mindre end 3 °C over gulvmålet). Så er det shunten, ikke ventilen, og rådet om at skrue op tager sig af det
 - Ny (1.9.0): **fælles notifikationer på Masteren** (HA og/eller push til valgte mobiler, testknap), **alarmer sendes som besked**, og **rummene vælger selv pumpegruppe og pumpekontakt**, så en pumpegruppe kun skal have et navn

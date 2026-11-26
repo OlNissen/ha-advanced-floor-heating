@@ -68,7 +68,9 @@
           "linked_rooms": "Koblede rum (samme luftrum, valgfri): rummenes rumtemperatur midles, og rum-setpunktet følger med. Vælg det i begge rum",
           "link_weight": "Vægt i det fælles middel (f.eks. rummets m², bruges kun ved koblede rum)",
           "pump_group": "Pumpegruppe (hvilken pumpe/shunt rummet hører til)",
-          "pump_switch": "Pumpekontakt for rummet (IHC pumpestyring; foreslås ud fra telestaten)"
+          "pump_switch": "Pumpekontakt for rummet (IHC pumpestyring; foreslås ud fra telestaten)",
+          "summer_stop": "Sommerstop gælder også dette rum (grænsen sættes på Masteren)",
+          "humidity_sensor": "Fugtføler til advarsel om skimmelrisiko (valgfri, kræver udetemperatur på Masteren)"
         }
       },
       "master_options": {

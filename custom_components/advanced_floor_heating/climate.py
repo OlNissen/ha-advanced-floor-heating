@@ -22,11 +22,16 @@ from .const import (
     CONF_OUTDOOR_KE, CONF_STALE_HOURS, DEFAULT_STALE_HOURS, CONF_SOLAR_GAIN,
     CONF_LINKED_ROOMS, CONF_LINK_WEIGHT, DEFAULT_LINK_WEIGHT, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
     STUCK_VALVE_MINUTES, STUCK_VALVE_MIN_RISE, SENSOR_ALARM_MINUTES, SUPPLY_MARGIN,
+    VERIFY_DELAY_SECONDS, VERIFY_RETRIES, CONF_SUMMER_APPLIES, STATUS_SUMMER,
+    CONF_HUMIDITY_SENSOR, THERMAL_SAVE_DELAY,
 )
+from homeassistant.helpers.storage import Store
+from .health import find_battery_entities, battery_low, surface_humidity, MoldWatch
+from .thermal import ThermalModel
 from .helpers import device_info, update_signal, MASTER_SIGNAL, ALARM_SIGNAL
 from .master import get_master
 from .review import RoomMetrics
-from .notify import notify, dismiss
+from .notify import notify
 from .const import REVIEW_KEY
 from .autotune import RelayAutoTuner, RULES, DEFAULT_RULE
 
@@ -143,6 +148,24 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         self._full_floor0 = None      # gulvtemperatur dengang
         self._runtime_s = 0.0         # sekunder med aaben ventil i dag
         self._runtime_date = None     # dato (ISO) for _runtime_s
+
+        # Batteri på følerne og telestat der ikke svarer
+        self._battery_entities = {}    # føler -> batteri-entiteter på samme enhed
+        self._battery_scanned = None   # monotonic: hvornår der sidst blev ledt efter dem
+        self._battery_state = {}       # batteri-entitet -> lavt?
+        self._switch_bad_since = None
+        self._verify_task = None
+        self._verify_want = None
+        self._failed_command = None    # "on"/"off", som telestaten ikke fulgte
+
+        # Sommerstop, skimmelrisiko og lært varmemodel
+        summer = _option(entry, CONF_SUMMER_APPLIES, True)
+        self._summer_applies = True if summer is None else bool(summer)
+        self._humidity_sensor = _option(entry, CONF_HUMIDITY_SENSOR) or None
+        self._mold = MoldWatch()
+        self._thermal = ThermalModel()
+        self._thermal_source = None    # "rum" eller "gulv": hvad modellen er lært på
+        self._thermal_store = None
 
         # Internal time constants
         self._i_time = 9000.0
@@ -345,6 +368,83 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         """
         return len(self.open_sensors) > 0
 
+    # ----------------------------------------------------- sommerstop og varmemodel
+
+    @property
+    def summer_stopped(self):
+        """True, når Masterens sommerstop gælder dette rum lige nu."""
+        if not self._summer_applies:
+            return False
+        hub = get_master(self.hass)
+        return bool(hub is not None and getattr(hub, "summer_active", False))
+
+    def _model_source(self):
+        return "gulv" if self._attr_preset_mode == PRESET_FLOOR_ONLY else "rum"
+
+    def _model_temp(self):
+        if self._model_source() == "gulv":
+            return self._read_temp(self._floor_sensor)
+        return self._control_room_temp()
+
+    def _record_thermal(self, now=None):
+        """Saml et målepunkt til varmemodellen - kun mens målingerne siger noget om rummet."""
+        if self._tuner is not None or self._exercise_start is not None or self.window_open:
+            self._thermal.interrupt()
+            return
+        source = self._model_source()
+        if self._thermal_source != source:
+            # Rum- og gulvmålinger må ikke blandes: begynd forfra, hvis tilstanden skifter mellem dem
+            if self._thermal_source is not None:
+                self._thermal.restore({})
+            self._thermal_source = source
+        output = 0.0 if self._attr_hvac_mode == HVACMode.OFF else self._pid_signal
+        added = self._thermal.add(
+            time.time() if now is None else now, output, self._model_temp(), self._outdoor_temp()
+        )
+        if added and self._thermal_store is not None:
+            self._thermal_store.async_delay_save(self._thermal_data, THERMAL_SAVE_DELAY)
+
+    def _thermal_data(self):
+        return {"source": self._thermal_source, **self._thermal.as_dict()}
+
+    def preheat_hours(self):
+        """Timer fra nu til rummet er tilbage på sit normale mål. None, hvis rummet ikke følger Masteren."""
+        if self._attr_hvac_mode == HVACMode.OFF or self._mode_override != MODE_FOLLOW:
+            return None
+        temp = self._model_temp()
+        if temp is None:
+            return None
+        target = self._target_temp_floor if self._model_source() == "gulv" else self._target_temp_room
+        return round(self._thermal.preheat_hours(temp, target, self._outdoor_temp()), 1)
+
+    # ------------------------------------------------------------- skimmelrisiko
+
+    def _read_humidity(self):
+        state = self.hass.states.get(self._humidity_sensor)
+        try:
+            return float(state.state)
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+    def _update_mold(self):
+        if not self._humidity_sensor:
+            return
+        humidity = self._read_humidity()
+        surface = surface_humidity(self._read_temp(self._room_sensor), humidity, self._outdoor_temp())
+        change = self._mold.update(surface, time.monotonic())
+        key = getattr(self, "entity_id", None) or self.name
+        if change == "start":
+            notify(
+                self.hass, f"afh_mold_{key}", f"Gulvvarme: risiko for skimmel i {self.name}",
+                f"**{self.name}:** den koldeste ydervæg har ca. {round(surface)} % fugtighed "
+                f"(rummet {round(humidity)} %). Luft ud, eller hold rummet lidt varmere.",
+            )
+        elif change == "stop":
+            notify(
+                self.hass, f"afh_mold_{key}", f"Gulvvarme: skimmelrisikoen er ovre i {self.name}",
+                f"**{self.name}:** væggen er nede på ca. {round(surface)} % fugtighed.",
+            )
+
     def _publish(self):
         """Write own state and tell the sensor/number entities of this room to refresh."""
         self.async_write_ha_state()
@@ -405,6 +505,13 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             if "control_output" in last_state.attributes:
                 self._pid_signal = max(0.0, min(100.0, float(last_state.attributes["control_output"])))
 
+        # Den lærte varmemodel gemmes for sig (for stor til attributterne)
+        self._thermal_store = Store(self.hass, 1, f"{DOMAIN}_thermal_{self._entry_id}")
+        stored = await self._thermal_store.async_load()
+        if stored:
+            self._thermal.restore(stored)
+            self._thermal_source = stored.get("source")
+
         # React immediately when the window opens or closes
         if self._window_sensors:
             self.async_on_remove(
@@ -431,6 +538,11 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         for task in self._tasks:
             task.cancel()
         self._tasks = []
+        if self._verify_task is not None:
+            self._verify_task.cancel()
+            self._verify_task = None
+        if self._thermal_store is not None:
+            await self._thermal_store.async_save(self._thermal_data())
         try:
             await self.hass.services.async_call("switch", "turn_off", {"entity_id": self._heater_switch})
         except Exception:  # noqa: BLE001 - never block unload because the switch is gone
@@ -509,6 +621,14 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             "autotune_active": self.autotune_active,
             "autotune_status": self._autotune_msg,
             "autotune_result": self._tuner_result,
+            "summer_stop": self.summer_stopped,
+            "summer_stop_applies": self._summer_applies,
+            "thermal_model": self._thermal.fit(),
+            "thermal_windows": len(self._thermal.windows),
+            "preheat_hours": self.preheat_hours(),
+            "humidity_sensor": self._humidity_sensor,
+            "surface_humidity": None if self._mold.surface is None else round(self._mold.surface),
+            "mold_risk": self._mold.risk,
         }
 
     # ------------------------------------------------------------------ control
@@ -518,6 +638,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         while True:
             await self._async_calculate_heating_demand()
             self._record_metrics()
+            self._record_thermal()
             await asyncio.sleep(max(1, self._pid_interval))
 
     def _record_metrics(self):
@@ -530,7 +651,7 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
         ):
             return
         status = self._regulation_status or ""
-        if "mangler" in status or "gammel" in status or status.startswith("Sikkerhedsstop"):
+        if "mangler" in status or "gammel" in status or status.startswith(("Sikkerhedsstop", "Sommerstop")):
             return
         floor = self._read_temp(self._floor_sensor)
         if floor is None:
@@ -627,6 +748,15 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._publish()
             return
 
+        if self.summer_stopped:
+            self._pid_signal = 0.0
+            self._frozen = False
+            self._reset_d = True  # ingen D-spike, når varmen tændes igen
+            self._regulation_status = STATUS_SUMMER
+            self._update_alarms()
+            self._publish()
+            return
+
         uses_room = self._attr_preset_mode != PRESET_FLOOR_ONLY
 
         # WINDOW RULE: with an open window the room temperature is meaningless
@@ -694,6 +824,20 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                 if now - since >= SENSOR_ALARM_MINUTES * 60:
                     alarms.append(f"{label} {problem}")
 
+        # Telestaten: væk i en periode, eller følger ikke kommandoen
+        switch = self.hass.states.get(self._heater_switch)
+        if switch is None or switch.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            if self._switch_bad_since is None:
+                self._switch_bad_since = now
+            if now - self._switch_bad_since >= SENSOR_ALARM_MINUTES * 60:
+                alarms.append("Telestat mangler")
+        else:
+            self._switch_bad_since = None
+        if self._failed_command is not None:
+            alarms.append("Telestat følger ikke kommandoen")
+
+        alarms.extend(self._battery_alarms(now))
+
         # Ventil der sidder fast: fuld udgang i lang tid uden at gulvet stiger
         floor = self._read_temp(self._floor_sensor)
         # Er shuntens fremløb for koldt til at varme gulvet, er det ikke ventilen, der er fejl
@@ -720,8 +864,11 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
             self._full_since = None
             self._full_floor0 = None
 
+        self._update_mold()
+
         if alarms != self._alarms:
-            new = [a for a in alarms if a not in self._alarms]
+            old = self._alarms
+            new = [a for a in alarms if a not in old]
             self._alarms = alarms
             key = getattr(self, "entity_id", None) or self.name
             if alarms:
@@ -732,8 +879,77 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
                         f"**{self.name}:** " + "; ".join(alarms) + ".",
                     )
             else:
-                dismiss(self.hass, f"afh_alarm_{key}")
+                # Samme id: beskeden (og en evt. push) erstattes af "løst"
+                notify(
+                    self.hass, f"afh_alarm_{key}", f"Gulvvarme: løst i {self.name}",
+                    f"**{self.name}:** " + "; ".join(old) + " – er løst.",
+                )
             async_dispatcher_send(self.hass, ALARM_SIGNAL)
+
+    def _battery_alarms(self, now):
+        """Lavt batteri på rum- og gulvfølerens enhed. Teksten er uden procent, så beskeden ikke gentages."""
+        if self._battery_scanned is None or now - self._battery_scanned >= 3600:
+            self._battery_scanned = now
+            self._battery_entities = {
+                sensor: find_battery_entities(self.hass, sensor)
+                for sensor in (self._room_sensor, self._floor_sensor)
+            }
+        alarms, seen = [], set()
+        for label, sensor in (("rumføler", self._room_sensor), ("gulvføler", self._floor_sensor)):
+            for battery in self._battery_entities.get(sensor, []):
+                if battery in seen:
+                    continue
+                seen.add(battery)
+                low, _level = battery_low(
+                    self.hass.states.get(battery), battery, self._battery_state.get(battery, False)
+                )
+                self._battery_state[battery] = low
+                if low:
+                    alarms.append(f"Lavt batteri i {label}")
+        return alarms
+
+    # ------------------------------------------------------ kontrol af kommandoer
+
+    async def _async_set_valve(self, on):
+        """Send kommandoen til telestaten, og kontrollér bagefter, at den blev fulgt."""
+        await self.hass.services.async_call(
+            "switch", "turn_on" if on else "turn_off", {"entity_id": self._heater_switch}
+        )
+        self._start_verify("on" if on else "off")
+
+    def _start_verify(self, want):
+        task = self._verify_task
+        if task is not None and not task.done():
+            if self._verify_want == want:
+                return  # den samme kommando kontrolleres allerede
+            task.cancel()
+        self._verify_want = want
+        self._verify_task = self.hass.async_create_background_task(
+            self._async_verify(want), name=f"Verify_{self.entity_id}"
+        )
+
+    async def _async_verify(self, want):
+        """Kom kommandoen ikke frem, sendes den igen. PWM-tiderne påvirkes ikke."""
+        for attempt in range(VERIFY_RETRIES + 1):
+            await asyncio.sleep(VERIFY_DELAY_SECONDS)
+            state = self.hass.states.get(self._heater_switch)
+            if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                return  # dækkes af "Telestat mangler"
+            if state.state == want:
+                # Alarmen slettes kun, når netop den kommando, der fejlede, bliver fulgt
+                if self._failed_command == want:
+                    self._failed_command = None
+                return
+            if attempt < VERIFY_RETRIES:
+                _LOGGER.warning("%s: %s fulgte ikke '%s' - sender igen", self.name, self._heater_switch, want)
+                try:
+                    await self.hass.services.async_call(
+                        "switch", "turn_on" if want == "on" else "turn_off",
+                        {"entity_id": self._heater_switch},
+                    )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("Could not switch %s: %s", self._heater_switch, err)
+        self._failed_command = want
 
     def _outdoor_temp(self):
         """Ude-temperatur fra Masteren (efter dens valgte kilde: måling, prognose eller begge)."""
@@ -941,13 +1157,13 @@ class AdvancedFloorHeatingEntity(ClimateEntity, RestoreEntity):
 
             try:
                 if on_time > 0:
-                    await self.hass.services.async_call("switch", "turn_on", {"entity_id": self._heater_switch})
+                    await self._async_set_valve(True)
                     self._last_valve_on = time.time()
                     await asyncio.sleep(on_time)
                     self._add_runtime(on_time)
 
                 if off_time > 0:
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": self._heater_switch})
+                    await self._async_set_valve(False)
                     await asyncio.sleep(off_time)
             except asyncio.CancelledError:
                 raise

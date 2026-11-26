@@ -61,7 +61,42 @@ DEFAULT_STALE_HOURS = 0
 STUCK_VALVE_MINUTES = 90      # fuld udgang saa laenge uden at gulvet stiger ...
 STUCK_VALVE_MIN_RISE = 0.5    # ... mindst saa mange grader
 SUPPLY_MARGIN = 3.0           # shuntens fremloeb skal vaere mindst saa mange grader over gulvmaalet, ellers ingen "ventil fast"-alarm
-SENSOR_ALARM_MINUTES = 15     # foeler maa mangle saa laenge, foer det er en alarm
+SENSOR_ALARM_MINUTES = 15     # foeler (eller telestat) maa mangle saa laenge, foer det er en alarm
+BATTERY_LOW = 15.0            # % - alarm under denne ...
+BATTERY_OK = 20.0             # ... og i orden igen fra denne
+
+# Kontrol af kommandoer til telestaten (PWM-tiderne er uaendrede)
+VERIFY_DELAY_SECONDS = 15     # saa laenge faar kontakten til at melde den nye tilstand
+VERIFY_RETRIES = 2            # saa mange gensendelser, foer det er en alarm
+
+# Sommerstop (graensen saettes paa Masteren; 0 = fra)
+SUMMER_TAU_HOURS = 24.0       # udetemperaturen midles over ca. et doegn
+SUMMER_MIN_AGE_HOURS = 6.0    # saa meget historik kraeves, foer varmen kan stoppes
+SUMMER_HYSTERESIS = 1.0       # varmen taendes igen, naar middelet er saa mange grader under graensen
+CONF_SUMMER_APPLIES = "summer_stop"   # paa et rum: gaelder sommerstop for rummet (standard ja)
+STATUS_SUMMER = "Sommerstop (Slukket)"
+
+# Ferie: forvarmning foer hjemkomst
+PREHEAT_MARGIN_HOURS = 1.0    # laegges oven i det beregnede
+PREHEAT_MAX_HOURS = 72
+MASTER_TICK_MINUTES = 5
+
+# Laert varmemodel
+THERMAL_WINDOW_MINUTES = 30
+THERMAL_MAX_WINDOWS = 1000          # ca. 20 doegn
+THERMAL_MAX_DELAY_WINDOWS = 24      # op til 12 timers forsinkelse i gulvet
+THERMAL_MIN_WINDOWS = 48
+THERMAL_MIN_HEATING = 8             # vinduer med ventilen mest aaben
+THERMAL_MIN_IDLE = 8                # vinduer med ventilen mest lukket
+THERMAL_FALLBACK_RATE = 0.25        # °C pr. time, indtil modellen er laert
+THERMAL_SAVE_DELAY = 600
+
+# Skimmelrisiko (kraever en fugtfoeler valgt paa rummet)
+CONF_HUMIDITY_SENSOR = "humidity_sensor"
+MOLD_FRSI = 0.7               # DIN 4108-2: temperaturfaktor for den koldeste vaeg
+MOLD_ALARM_RH = 80.0
+MOLD_CLEAR_RH = 75.0
+MOLD_HOLD_MINUTES = 60
 
 # ---------------------------------------------------------------- Ude-kilde, prognose og sol
 CONF_WEATHER_ENTITY = "weather_entity"     # sat paa Masteren (weather.*)

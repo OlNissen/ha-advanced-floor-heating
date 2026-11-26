@@ -355,6 +355,8 @@ class AdvancedFloorHeatingCard extends HTMLElement {
       mode = `Regulerer efter ${reg_status.split(' ')[0].toLowerCase()}`;
     } else if (/^Mål nået/.test(reg_status)) {
       mode = 'Mål nået';
+    } else if (/^Sommerstop/.test(reg_status)) {
+      mode = 'Sommerstop';
     }
     // Husets tilstand fra Masteren (eller rummets egen): kun synlig, når den ikke er "Beboet"
     const house = attr.house_mode;

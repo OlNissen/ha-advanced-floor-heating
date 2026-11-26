@@ -14,6 +14,7 @@ from .const import (
     TYPE_PUMP, CONF_GROUP_ROOMS, CONF_PUMP_SWITCHES, CONF_PUMP_FEEDBACK, CONF_SHUNT_SENSOR,
     CONF_PUMP_STOP_MINUTES, DEFAULT_PUMP_STOP_MINUTES, CONF_PUMP_MOTION_DAYS, DEFAULT_PUMP_MOTION_DAYS,
     CONF_NOTIFY_IN_HA, CONF_NOTIFY_MOBILES, CONF_PUMP_GROUP, CONF_ROOM_PUMP_SWITCH,
+    CONF_SUMMER_APPLIES, CONF_HUMIDITY_SENSOR,
 )
 
 def _group_options(hass):
@@ -152,8 +153,12 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 self.hass, options.get("heater_switch", self.config_entry.data.get("heater_switch"))
             )
 
+        humidity = options.get(CONF_HUMIDITY_SENSOR, self.config_entry.data.get(CONF_HUMIDITY_SENSOR))
+        summer = options.get(CONF_SUMMER_APPLIES, True)
+
         if user_input is not None:
             data = dict(user_input)
+            data.setdefault(CONF_HUMIDITY_SENSOR, None)
             # Store the key even when cleared, so options override the old value
             data.setdefault(CONF_WINDOW_SENSOR, [])
             data.setdefault(CONF_LINKED_ROOMS, [])
@@ -222,6 +227,12 @@ class AdvancedFloorHeatingOptionsFlowHandler(config_entries.OptionsFlow):
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=100, step=1)
                 ),
+                vol.Required(CONF_SUMMER_APPLIES, default=True if summer is None else bool(summer)):
+                    selector.BooleanSelector(),
+                vol.Optional(CONF_HUMIDITY_SENSOR, description={"suggested_value": humidity}):
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
+                    ),
                 vol.Required("kp", default=float(options.get("kp", 10.0))): selector.NumberSelector(
                     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, min=0, max=1000, step=0.1)
                 ),

@@ -68,7 +68,9 @@
           "linked_rooms": "Linked rooms (same air space, optional): room temperatures are averaged and the room setpoint follows. Set it in both rooms",
           "link_weight": "Weight in the shared average (e.g. room m², only used with linked rooms)",
           "pump_group": "Pump group (which pump/shunt the room belongs to)",
-          "pump_switch": "Pump switch for the room (IHC pump control; suggested from the actuator name)"
+          "pump_switch": "Pump switch for the room (IHC pump control; suggested from the actuator name)",
+          "summer_stop": "Summer stop also applies to this room (the limit is set on the Master)",
+          "humidity_sensor": "Humidity sensor for mould risk warnings (optional, needs an outdoor temperature on the Master)"
         }
       },
       "master_options": {

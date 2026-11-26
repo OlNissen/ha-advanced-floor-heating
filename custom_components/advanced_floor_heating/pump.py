@@ -58,7 +58,7 @@ def evaluate_advice(rooms):
     """
     starved, tot, low, outs = [], 0, 0, []
     for r in rooms:
-        if r._attr_hvac_mode == "off" or r.house_mode == MODE_OFF:
+        if r._attr_hvac_mode == "off" or r.house_mode == MODE_OFF or getattr(r, "summer_stopped", False):
             continue
         out = float(r._pid_signal)
         tot += 1

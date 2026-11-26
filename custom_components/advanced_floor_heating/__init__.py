@@ -4,7 +4,7 @@ from .const import DOMAIN, CONF_ENTRY_TYPE, TYPE_MASTER, TYPE_PUMP, MASTER_KEY, 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS_ROOM = ["climate", "sensor", "number", "switch", "button", "select", "binary_sensor"]
-PLATFORMS_MASTER = ["select", "number", "binary_sensor", "sensor", "button"]
+PLATFORMS_MASTER = ["select", "number", "binary_sensor", "sensor", "button", "datetime"]
 PLATFORMS_PUMP = ["sensor", "binary_sensor", "switch", "button"]
 
 

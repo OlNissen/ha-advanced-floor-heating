@@ -1,5 +1,6 @@
 """Master: husets tilstand (som i IHC), ude-temperatur, prognose og sol - sendes ud til alle rum."""
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -13,7 +14,9 @@ from .const import (
     FORECAST_REFRESH_MINUTES, FORECAST_MAX_AGE_HOURS, SOLAR_FULL_ELEVATION,
     CONF_REVIEW_DAYS, DEFAULT_REVIEW_DAYS, CONF_ALLOW_AI_CHANGES,
     CONF_NOTIFY_IN_HA, CONF_NOTIFY_MOBILES,
+    MODE_UNOCCUPIED, MODE_FROST, MODE_OFF, PREHEAT_MARGIN_HOURS, PREHEAT_MAX_HOURS, MASTER_TICK_MINUTES,
 )
+from .health import SummerStop
 from .helpers import MASTER_SIGNAL, ALARM_SIGNAL, MASTER_VALUES_SIGNAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -104,6 +107,10 @@ class MasterHub:
         self._unsub = None
         self._retry_unsub = None
         self._retries = 0
+        self._tick_unsub = None
+        self.summer = SummerStop()
+        self.return_at = None             # datetime (med tidszone): hvornår I er hjemme igen
+        self.preheat_manual_hours = 0.0   # 0 = beregn ud fra rummenes varmemodeller
 
     # ---------------------------------------------------------------- indstillinger
 
@@ -158,6 +165,8 @@ class MasterHub:
     def set_mode(self, mode, notify=True):
         if mode in HOUSE_MODES and mode != self.mode:
             self.mode = mode
+            if notify and mode in (MODE_OCCUPIED, MODE_OFF):
+                self.return_at = None    # I er hjemme (eller varmen er slukket): ingen planlagt forvarmning
             if notify:
                 self.notify()
 
@@ -177,6 +186,89 @@ class MasterHub:
             if notify:
                 self.notify_values()
 
+    # ------------------------------------------------------------------ sommerstop
+
+    @property
+    def summer_active(self):
+        return self.summer.active
+
+    def set_summer_limit(self, value, notify=True):
+        self.summer.limit = float(value)
+        self.summer.add(self.outdoor_temp(), time.time())
+        self.summer.evaluate(time.time())
+        if notify:
+            self.notify()
+
+    def _update_summer(self, now):
+        was = self.summer.active
+        self.summer.add(self.outdoor_temp(), now)
+        if self.summer.evaluate(now) == was:
+            return
+        from .notify import notify
+        mean = self.summer.mean
+        if self.summer.active:
+            title = "Gulvvarme: sommerstop"
+            text = (f"Det har i gennemsnit været {mean:.1f} °C ude det sidste døgn, så varmen holder pause "
+                    f"(grænse {self.summer.limit:g} °C).")
+        else:
+            title = "Gulvvarme: sommerstop slut"
+            text = "Varmen regulerer igen."
+        notify(self.hass, "afh_summer", title, text)
+        self.notify()
+
+    # ------------------------------------------------------------ ferie og forvarmning
+
+    @staticmethod
+    def utcnow():
+        return datetime.now(timezone.utc)
+
+    def set_return_at(self, value, notify=True):
+        """Planlagt hjemkomst. Et tidspunkt i fortiden annullerer planen."""
+        self.return_at = value if value is not None and value > self.utcnow() else None
+        if notify:
+            self.notify_values()
+
+    def rooms(self):
+        return [o for o in self.hass.data.get(DOMAIN, {}).values() if hasattr(o, "preheat_hours")
+                and hasattr(o, "_heater_switch")]
+
+    def preheat_needed(self):
+        """(timer før hjemkomst varmen skal tændes, rummet der bestemmer det eller None)."""
+        if self.preheat_manual_hours > 0:
+            return float(self.preheat_manual_hours), None
+        slowest, hours = None, 0.0
+        for room in self.rooms():
+            need = room.preheat_hours()
+            if need is not None and need > hours:
+                slowest, hours = room.name, need
+        return min(PREHEAT_MAX_HOURS, hours + PREHEAT_MARGIN_HOURS), slowest
+
+    def preheat_start(self):
+        """Tidspunktet hvor Masteren går tilbage til Beboet, eller None uden en aktiv ferieplan."""
+        if self.return_at is None or self.mode not in (MODE_UNOCCUPIED, MODE_FROST):
+            return None
+        return self.return_at - timedelta(hours=self.preheat_needed()[0])
+
+    def _update_vacation(self):
+        start = self.preheat_start()
+        if start is None or self.utcnow() < start:
+            return
+        from .notify import notify
+        hours, slowest = self.preheat_needed()
+        home = self.return_at.astimezone().strftime("%d-%m kl. %H:%M")
+        self.set_mode(MODE_OCCUPIED)
+        why = f" Langsomste rum er {slowest}." if slowest else ""
+        notify(
+            self.hass, "afh_preheat", "Gulvvarme: forvarmning startet",
+            f"Huset er sat til Beboet, så det er varmt til hjemkomsten {home} "
+            f"(ca. {hours:.0f} timers opvarmning).{why}",
+        )
+
+    async def async_tick(self, _now=None):
+        self._update_summer(time.time())
+        self._update_vacation()
+        self.notify_values()
+
     def notify(self):
         """Giv alle rum besked om, at Masteren er aendret."""
         async_dispatcher_send(self.hass, MASTER_SIGNAL)
@@ -192,7 +284,10 @@ class MasterHub:
     # -------------------------------------------------------------------- prognose
 
     async def async_start(self):
-        """Hent prognosen nu og derefter jaevnligt."""
+        """Hent prognosen nu og derefter jaevnligt, og hold øje med sommerstop og hjemkomst."""
+        self._tick_unsub = async_track_time_interval(
+            self.hass, self.async_tick, timedelta(minutes=MASTER_TICK_MINUTES)
+        )
         if not self.weather_entity:
             return
         self.hass.async_create_background_task(
@@ -203,6 +298,9 @@ class MasterHub:
         )
 
     def async_stop(self):
+        if self._tick_unsub:
+            self._tick_unsub()
+            self._tick_unsub = None
         if self._unsub:
             self._unsub()
             self._unsub = None
